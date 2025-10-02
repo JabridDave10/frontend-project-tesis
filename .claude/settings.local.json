@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir:*)",
+      "Read(//c/Users/diego/OneDrive/Escritorio/backend-project-tesis/src/**)",
+      "Bash(cat:*)",
+      "Read(//c/Users/diego/OneDrive/Escritorio/backend-project-tesis/**)",
+      "Bash(npm run build:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
