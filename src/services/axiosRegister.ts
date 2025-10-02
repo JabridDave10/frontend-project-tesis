@@ -77,28 +77,28 @@ export class AxiosUserManagement {
   async loginUser(data: LoginUserDto): Promise<LoginResponse | null> {
     try {
       console.log('Enviando datos de login:', data)
-      
+
       const response = await this.api.post('/auth/login', data)
-      
+
       console.log('Respuesta del servidor:', response.data)
-      
+
       // Guardar token en localStorage
       if (response.data.access_token) {
         localStorage.setItem('token', response.data.access_token)
         localStorage.setItem('user', JSON.stringify(response.data.user))
       }
-      
+
       // Mostrar mensaje de éxito
       toast.success('Inicio de sesión exitoso')
-      
+
       return response.data
     } catch (error: any) {
       console.error('Error al hacer login:', error)
-      
+
       // Manejar diferentes tipos de errores
       if (error.response) {
         const errorData: ErrorResponse = error.response.data
-        
+
         // Error de credenciales (401)
         if (error.response.status === 401) {
           toast.error(errorData.error || 'Credenciales incorrectas')
@@ -127,8 +127,44 @@ export class AxiosUserManagement {
       } else {
         toast.error('Error inesperado al iniciar sesión')
       }
-      
+
       return null
+    }
+  }
+
+  // Método para cerrar sesión
+  async logoutUser(): Promise<boolean> {
+    try {
+      console.log('Cerrando sesión...')
+
+      const response = await this.api.post('/auth/logout')
+
+      console.log('Respuesta del servidor:', response.data)
+
+      // Limpiar localStorage
+      localStorage.removeItem('token')
+      localStorage.removeItem('user')
+
+      // Mostrar mensaje de éxito
+      toast.success('Sesión cerrada exitosamente')
+
+      return true
+    } catch (error: any) {
+      console.error('Error al cerrar sesión:', error)
+
+      // Aunque falle la petición, igualmente limpiar localStorage
+      localStorage.removeItem('token')
+      localStorage.removeItem('user')
+
+      if (error.response) {
+        toast.error('Error al cerrar sesión en el servidor')
+      } else if (error.request) {
+        toast.error('Error de conexión. Sesión cerrada localmente')
+      } else {
+        toast.error('Error inesperado al cerrar sesión')
+      }
+
+      return true // Retornar true de todas formas para redirigir al login
     }
   }
 
