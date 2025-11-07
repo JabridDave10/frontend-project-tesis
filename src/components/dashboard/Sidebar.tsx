@@ -11,7 +11,12 @@ interface MenuItem {
   submenu?: { name: string; href: string }[]
 }
 
-export const Sidebar = () => {
+interface SidebarProps {
+  isOpen: boolean
+  onToggle: () => void
+}
+
+export const Sidebar = ({ isOpen, onToggle }: SidebarProps) => {
   const pathname = usePathname()
   const [openMenus, setOpenMenus] = useState<string[]>([])
 
@@ -79,72 +84,115 @@ export const Sidebar = () => {
   ]
 
   return (
-    <aside className="w-64 bg-gradient-to-b from-blue-600 to-blue-800 text-white min-h-screen flex flex-col">
-      {/* Logo */}
-      <div className="p-6 flex flex-col items-center border-b border-blue-500">
-        <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mb-3">
-          <div className="w-12 h-12 bg-gradient-to-br from-pink-400 to-blue-500 rounded-full flex items-center justify-center">
-            <span className="text-white font-bold text-xl">M</span>
-          </div>
-        </div>
-        <h1 className="text-sm font-semibold text-center">
-          Transportadora Algrt
-        </h1>
-      </div>
+    <>
+      {/* Overlay para móvil */}
+      {isOpen && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
+          onClick={onToggle}
+        />
+      )}
 
-      {/* Menu Items */}
-      <nav className="flex-1 py-4">
-        {menuItems.map((item) => (
-          <div key={item.name}>
-            {item.submenu ? (
-              <>
-                <button
-                  onClick={() => toggleMenu(item.name)}
-                  className="w-full px-6 py-3 flex items-center justify-between hover:bg-blue-700 transition-colors"
-                >
-                  <div className="flex items-center gap-3">
-                    {item.icon}
-                    <span className="text-sm">{item.name}</span>
-                  </div>
-                  <svg
-                    className={`w-4 h-4 transition-transform ${openMenus.includes(item.name) ? 'rotate-180' : ''}`}
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </svg>
-                </button>
-                {openMenus.includes(item.name) && (
-                  <div className="bg-blue-900 bg-opacity-50">
-                    {item.submenu.map((subItem) => (
-                      <Link
-                        key={subItem.name}
-                        href={subItem.href}
-                        className={`block px-6 py-2 pl-14 text-sm hover:bg-blue-700 transition-colors ${
-                          pathname === subItem.href ? 'bg-blue-700' : ''
-                        }`}
-                      >
-                        {subItem.name}
-                      </Link>
-                    ))}
-                  </div>
-                )}
-              </>
-            ) : (
-              <Link
-                href={item.href}
-                className={`px-6 py-3 flex items-center gap-3 hover:bg-blue-700 transition-colors ${
-                  pathname === item.href ? 'bg-blue-700' : ''
-                }`}
-              >
-                {item.icon}
-                <span className="text-sm">{item.name}</span>
-              </Link>
-            )}
+      {/* Sidebar */}
+      <aside
+        className={`
+          fixed lg:static inset-y-0 left-0 z-50
+          bg-gradient-to-b from-blue-600 to-blue-800 text-white
+          min-h-screen flex flex-col
+          transition-all duration-300 ease-in-out
+          ${isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+          ${isOpen ? 'w-64' : 'lg:w-20 w-64'}
+        `}
+      >
+        {/* Toggle Button */}
+        <button
+          onClick={onToggle}
+          className="absolute -right-3 top-6 bg-blue-600 hover:bg-blue-700 rounded-full p-1.5 shadow-lg hidden lg:block z-10 transition-colors"
+        >
+          <svg
+            className={`w-4 h-4 transition-transform duration-300 ${isOpen ? '' : 'rotate-180'}`}
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          </svg>
+        </button>
+
+        {/* Logo */}
+        <div className={`p-6 flex flex-col items-center border-b border-blue-500 transition-all duration-300 ${isOpen ? '' : 'lg:px-2'}`}>
+          <div className={`bg-white rounded-full flex items-center justify-center mb-3 transition-all duration-300 ${isOpen ? 'w-16 h-16' : 'lg:w-10 lg:h-10 w-16 h-16'}`}>
+            <div className={`bg-gradient-to-br from-pink-400 to-blue-500 rounded-full flex items-center justify-center transition-all duration-300 ${isOpen ? 'w-12 h-12' : 'lg:w-8 lg:h-8 w-12 h-12'}`}>
+              <span className={`text-white font-bold transition-all duration-300 ${isOpen ? 'text-xl' : 'lg:text-sm text-xl'}`}>M</span>
+            </div>
           </div>
-        ))}
-      </nav>
-    </aside>
+          {isOpen && (
+            <h1 className="text-sm font-semibold text-center animate-fadeIn">
+              Transportadora Algrt
+            </h1>
+          )}
+        </div>
+
+        {/* Menu Items */}
+        <nav className="flex-1 py-4 overflow-y-auto">
+          {menuItems.map((item) => (
+            <div key={item.name}>
+              {item.submenu ? (
+                <>
+                  <button
+                    onClick={() => toggleMenu(item.name)}
+                    className={`w-full py-3 flex items-center hover:bg-blue-700 transition-colors ${isOpen ? 'px-6 justify-between' : 'lg:px-3 lg:justify-center px-6 justify-between'}`}
+                    title={!isOpen ? item.name : ''}
+                  >
+                    <div className="flex items-center gap-3">
+                      {item.icon}
+                      {isOpen && <span className="text-sm">{item.name}</span>}
+                    </div>
+                    {isOpen && (
+                      <svg
+                        className={`w-4 h-4 transition-transform ${openMenus.includes(item.name) ? 'rotate-180' : ''}`}
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    )}
+                  </button>
+                  {openMenus.includes(item.name) && isOpen && (
+                    <div className="bg-blue-900 bg-opacity-50">
+                      {item.submenu.map((subItem) => (
+                        <Link
+                          key={subItem.name}
+                          href={subItem.href}
+                          className={`block px-6 py-2 pl-14 text-sm hover:bg-blue-700 transition-colors ${
+                            pathname === subItem.href ? 'bg-blue-700' : ''
+                          }`}
+                          onClick={() => window.innerWidth < 1024 && onToggle()}
+                        >
+                          {subItem.name}
+                        </Link>
+                      ))}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <Link
+                  href={item.href}
+                  className={`py-3 flex items-center gap-3 hover:bg-blue-700 transition-colors ${
+                    pathname === item.href ? 'bg-blue-700' : ''
+                  } ${isOpen ? 'px-6' : 'lg:px-3 lg:justify-center px-6'}`}
+                  title={!isOpen ? item.name : ''}
+                  onClick={() => window.innerWidth < 1024 && onToggle()}
+                >
+                  {item.icon}
+                  {isOpen && <span className="text-sm">{item.name}</span>}
+                </Link>
+              )}
+            </div>
+          ))}
+        </nav>
+      </aside>
+    </>
   )
 }
