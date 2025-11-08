@@ -6,8 +6,8 @@ import { DriversService } from '@/services/driversService'
 import { AxiosUserManagement } from '@/services/axiosRegister'
 import { CreateDriverDto } from '@/types/driverTypes'
 import { RegisterUserDto } from '@/types/userTypes'
-import { Input } from '@/components/ui/Input'
-import { Button } from '@/components/ui/Button'
+import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
 
 export const AddDriverView = () => {
   const router = useRouter()
