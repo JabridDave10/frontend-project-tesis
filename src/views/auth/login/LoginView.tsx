@@ -4,11 +4,10 @@ import { useState } from 'react'
 import { AxiosUserManagement } from '@/services/axiosRegister'
 import { LoginUserDto } from '@/types/userTypes'
 import { useRouter } from 'next/navigation'
-import { Input } from '@/components/ui/Input'
-import { Button } from '@/components/ui/Button'
-import { EnvelopeIcon } from '@/components/icons/EnvelopeIcon'
-import { LockIcon } from '@/components/icons/LockIcon'
-import { EyeIcon, EyeOffIcon } from '@/components/icons/EyeIcon'
+import { Button } from '@/components/ui/button'
+import { InputWithIcon } from '@/components/ui/input-with-icon'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Mail, Lock, Eye, EyeOff } from 'lucide-react'
 
 export const LoginView = () => {
   const [formData, setFormData] = useState<LoginUserDto>({
@@ -74,8 +73,8 @@ export const LoginView = () => {
           </p>
           <Button 
             type="button" 
-            variant="secondary"
-            className="bg-blue-600 hover:bg-blue-700 text-white px-8"
+            variant="outline"
+            className="bg-white/10 hover:bg-white/20 text-white border-white/20 px-8"
           >
             Link
           </Button>
@@ -83,69 +82,73 @@ export const LoginView = () => {
       </div>
 
       {/* Panel derecho - Formulario de login */}
-      <div className="w-full max-w-md bg-white flex flex-col justify-center p-8">
-        <div className="w-full max-w-sm mx-auto">
-          <h2 className="text-3xl font-bold text-gray-800 mb-2">
-            Inicia Sesión
-          </h2>
-          <p className="text-gray-600 mb-8">
-            Bienvenido de Vuelta!
-          </p>
+      <div className="w-full max-w-md bg-background flex flex-col justify-center p-8">
+        <Card className="border-0 shadow-none">
+          <CardHeader className="space-y-1">
+            <CardTitle className="text-3xl font-bold">Inicia Sesión</CardTitle>
+            <CardDescription>Bienvenido de Vuelta!</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmit} className="space-y-6">
+              {/* Campo Email */}
+              <div className="space-y-2">
+                <InputWithIcon
+                  type="email"
+                  name="email"
+                  value={formData.email}
+                  onChange={handleInputChange}
+                  placeholder="Email Address"
+                  leftIcon={<Mail className="h-5 w-5" />}
+                  required
+                />
+              </div>
 
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Campo Email */}
-            <Input
-              type="email"
-              name="email"
-              value={formData.email}
-              onChange={handleInputChange}
-              placeholder="Email Address"
-              icon={<EnvelopeIcon />}
-              required
-            />
+              {/* Campo Password */}
+              <div className="space-y-2">
+                <InputWithIcon
+                  type={showPassword ? "text" : "password"}
+                  name="password"
+                  value={formData.password}
+                  onChange={handleInputChange}
+                  placeholder="Password"
+                  leftIcon={<Lock className="h-5 w-5" />}
+                  rightIcon={showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                  onRightIconClick={() => setShowPassword(!showPassword)}
+                  required
+                />
+              </div>
 
-            {/* Campo Password */}
-            <Input
-              type={showPassword ? "text" : "password"}
-              name="password"
-              value={formData.password}
-              onChange={handleInputChange}
-              placeholder="Password"
-              icon={<LockIcon />}
-              rightIcon={showPassword ? <EyeOffIcon /> : <EyeIcon />}
-              onRightIconClick={() => setShowPassword(!showPassword)}
-              required
-            />
-
-            {/* Botón Login */}
-            <Button
-              type="submit"
-              disabled={isLoading}
-              className="w-full"
-            >
-              {isLoading ? 'Iniciando sesión...' : 'Login'}
-            </Button>
-          </form>
-
-          {/* Links inferiores */}
-          <div className="mt-6 space-y-3 text-center">
-            <a 
-              href="#" 
-              className="text-gray-600 hover:text-blue-600 text-sm transition-colors block"
-            >
-              Olvidar Contraseña
-            </a>
-            <div className="text-sm text-gray-600">
-              ¿No tienes cuenta?{' '}
-              <a 
-                href="/auth/register" 
-                className="text-blue-600 hover:text-blue-700 font-medium transition-colors"
+              {/* Botón Login */}
+              <Button
+                type="submit"
+                disabled={isLoading}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                size="lg"
               >
-                Regístrate ahora
+                {isLoading ? 'Iniciando sesión...' : 'Login'}
+              </Button>
+            </form>
+
+            {/* Links inferiores */}
+            <div className="mt-6 space-y-3 text-center">
+              <a 
+                href="#" 
+                className="text-sm text-muted-foreground hover:text-primary transition-colors block"
+              >
+                Olvidar Contraseña
               </a>
+              <div className="text-sm text-muted-foreground">
+                ¿No tienes cuenta?{' '}
+                <a 
+                  href="/auth/register" 
+                  className="text-primary hover:text-primary/80 font-medium transition-colors"
+                >
+                  Regístrate ahora
+                </a>
+              </div>
             </div>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   )
