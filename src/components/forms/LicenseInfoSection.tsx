@@ -49,11 +49,17 @@ export const LicenseInfoSection = ({
           }}
           placeholder="Número de Licencia"
           required
+          minLength={4}
           maxLength={10}
         />
         <p className="text-xs text-gray-500 mt-1">
-          En Colombia, el número de licencia coincide con la cédula. {userIdentification && `(${userIdentification})`}
+          4-10 dígitos (solo números). En Colombia coincide con la cédula. {userIdentification && `(${userIdentification})`}
         </p>
+        {data.license_number && (data.license_number.length < 4 || data.license_number.length > 10) && (
+          <p className="text-xs text-red-600 mt-1">
+            ⚠️ El número de licencia debe tener entre 4 y 10 dígitos
+          </p>
+        )}
       </div>
 
       {/* Categorías de Licencia */}

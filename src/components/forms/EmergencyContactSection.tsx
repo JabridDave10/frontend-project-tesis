@@ -93,10 +93,11 @@ export const EmergencyContactSection = ({
           }}
           placeholder="3001234567"
           required
+          minLength={10}
           maxLength={10}
         />
         <p className="text-xs text-gray-500 mt-1">
-          Ingrese 10 dígitos sin espacios ni guiones
+          Exactamente 10 dígitos sin espacios ni guiones (solo números)
         </p>
         {data.emergency_contact_phone &&
 !isValidPhone(data.emergency_contact_phone) && (

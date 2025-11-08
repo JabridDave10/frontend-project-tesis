@@ -57,7 +57,12 @@ export const UserInfoForm = ({
                 onChange={onDataChange}
                 placeholder="Nombre"
                 required
+                minLength={1}
+                maxLength={50}
               />
+              <p className="text-xs text-gray-500 mt-1">
+                Máximo 50 caracteres
+              </p>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -70,7 +75,12 @@ export const UserInfoForm = ({
                 onChange={onDataChange}
                 placeholder="Apellido"
                 required
+                minLength={1}
+                maxLength={50}
               />
+              <p className="text-xs text-gray-500 mt-1">
+                Máximo 50 caracteres
+              </p>
             </div>
           </div>
 
@@ -86,9 +96,11 @@ export const UserInfoForm = ({
               onChange={onDataChange}
               placeholder="Número de cédula"
               required
+              minLength={1}
+              maxLength={20}
             />
             <p className="text-xs text-gray-500 mt-1">
-              Esta será usada como número de licencia
+              Esta será usada como número de licencia (1-20 caracteres)
             </p>
           </div>
 
@@ -152,9 +164,11 @@ export const UserInfoForm = ({
               onChange={onDataChange}
               placeholder="3001234567"
               required
+              minLength={1}
+              maxLength={11}
             />
             <p className="text-xs text-gray-500 mt-1">
-              10 dígitos sin espacios ni guiones
+              1-11 caracteres
             </p>
           </div>
         </div>
@@ -185,9 +199,11 @@ export const UserInfoForm = ({
               onChange={onDataChange}
               placeholder="Contraseña segura"
               required
+              minLength={6}
+              maxLength={20}
             />
             <p className="text-xs text-gray-500 mt-1">
-              Mínimo 6 caracteres, se recomienda incluir números y símbolos
+              6-20 caracteres, se recomienda incluir números y símbolos
             </p>
           </div>
         </div>
