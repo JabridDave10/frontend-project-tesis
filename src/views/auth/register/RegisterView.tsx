@@ -4,15 +4,10 @@ import { useState } from 'react'
 import { AxiosUserManagement } from '@/services/axiosRegister'
 import { RegisterUserDto } from '@/types/userTypes'
 import { useRouter } from 'next/navigation'
-import { Input } from '@/components/ui/Input'
-import { Button } from '@/components/ui/Button'
-import { EnvelopeIcon } from '@/components/icons/EnvelopeIcon'
-import { LockIcon } from '@/components/icons/LockIcon'
-import { EyeIcon, EyeOffIcon } from '@/components/icons/EyeIcon'
-import { UserIcon } from '@/components/icons/UserIcon'
-import { IdCardIcon } from '@/components/icons/IdCardIcon'
-import { PhoneIcon } from '@/components/icons/PhoneIcon'
-import { CalendarIcon } from '@/components/icons/CalendarIcon'
+import { Button } from '@/components/ui/button'
+import { InputWithIcon } from '@/components/ui/input-with-icon'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { User, Mail, Lock, Eye, EyeOff, Calendar, Phone, CreditCard } from 'lucide-react'
 
 export const RegisterView = () => {
   const [formData, setFormData] = useState<RegisterUserDto>({
@@ -83,8 +78,8 @@ export const RegisterView = () => {
           </p>
           <Button 
             type="button" 
-            variant="secondary"
-            className="bg-blue-600 hover:bg-blue-700 text-white px-8"
+            variant="outline"
+            className="bg-white/10 hover:bg-white/20 text-white border-white/20 px-8"
           >
             Link
           </Button>
@@ -92,118 +87,132 @@ export const RegisterView = () => {
       </div>
 
       {/* Panel derecho - Formulario de registro */}
-      <div className="w-full max-w-md bg-white flex flex-col justify-center p-8 overflow-y-auto">
-        <div className="w-full max-w-sm mx-auto">
-          <h2 className="text-3xl font-bold text-gray-800 mb-2">
-            Crear Cuenta
-          </h2>
-          <p className="text-gray-600 mb-8">
-            Completa tus datos para registrarte
-          </p>
+      <div className="w-full max-w-md bg-background flex flex-col justify-center p-8 overflow-y-auto">
+        <Card className="border-0 shadow-none">
+          <CardHeader className="space-y-1">
+            <CardTitle className="text-3xl font-bold">Crear Cuenta</CardTitle>
+            <CardDescription>Completa tus datos para registrarte</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              {/* Campo First Name */}
+              <div className="space-y-2">
+                <InputWithIcon
+                  type="text"
+                  name="first_name"
+                  value={formData.first_name}
+                  onChange={handleInputChange}
+                  placeholder="Nombre"
+                  leftIcon={<User className="h-5 w-5" />}
+                  required
+                />
+              </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Campo First Name */}
-            <Input
-              type="text"
-              name="first_name"
-              value={formData.first_name}
-              onChange={handleInputChange}
-              placeholder="Nombre"
-              icon={<UserIcon />}
-              required
-            />
+              {/* Campo Last Name */}
+              <div className="space-y-2">
+                <InputWithIcon
+                  type="text"
+                  name="last_name"
+                  value={formData.last_name}
+                  onChange={handleInputChange}
+                  placeholder="Apellido"
+                  leftIcon={<User className="h-5 w-5" />}
+                  required
+                />
+              </div>
 
-            {/* Campo Last Name */}
-            <Input
-              type="text"
-              name="last_name"
-              value={formData.last_name}
-              onChange={handleInputChange}
-              placeholder="Apellido"
-              icon={<UserIcon />}
-              required
-            />
+              {/* Campo Identification */}
+              <div className="space-y-2">
+                <InputWithIcon
+                  type="text"
+                  name="identification"
+                  value={formData.identification}
+                  onChange={handleInputChange}
+                  placeholder="Identificación"
+                  leftIcon={<CreditCard className="h-5 w-5" />}
+                  required
+                />
+              </div>
 
-            {/* Campo Identification */}
-            <Input
-              type="text"
-              name="identification"
-              value={formData.identification}
-              onChange={handleInputChange}
-              placeholder="Identificación"
-              icon={<IdCardIcon />}
-              required
-            />
+              {/* Campo Birthdate */}
+              <div className="space-y-2">
+                <InputWithIcon
+                  type="date"
+                  name="birthdate"
+                  value={formData.birthdate}
+                  onChange={handleInputChange}
+                  placeholder="Fecha de nacimiento"
+                  leftIcon={<Calendar className="h-5 w-5" />}
+                  required
+                />
+              </div>
 
-            {/* Campo Birthdate */}
-            <Input
-              type="date"
-              name="birthdate"
-              value={formData.birthdate}
-              onChange={handleInputChange}
-              placeholder="Fecha de nacimiento"
-              icon={<CalendarIcon />}
-              required
-            />
+              {/* Campo Email */}
+              <div className="space-y-2">
+                <InputWithIcon
+                  type="email"
+                  name="email"
+                  value={formData.email}
+                  onChange={handleInputChange}
+                  placeholder="Email"
+                  leftIcon={<Mail className="h-5 w-5" />}
+                  required
+                />
+              </div>
 
-            {/* Campo Email */}
-            <Input
-              type="email"
-              name="email"
-              value={formData.email}
-              onChange={handleInputChange}
-              placeholder="Email"
-              icon={<EnvelopeIcon />}
-              required
-            />
+              {/* Campo Phone */}
+              <div className="space-y-2">
+                <InputWithIcon
+                  type="tel"
+                  name="phone"
+                  value={formData.phone}
+                  onChange={handleInputChange}
+                  placeholder="Teléfono"
+                  leftIcon={<Phone className="h-5 w-5" />}
+                  required
+                />
+              </div>
 
-            {/* Campo Phone */}
-            <Input
-              type="tel"
-              name="phone"
-              value={formData.phone}
-              onChange={handleInputChange}
-              placeholder="Teléfono"
-              icon={<PhoneIcon />}
-              required
-            />
+              {/* Campo Password */}
+              <div className="space-y-2">
+                <InputWithIcon
+                  type={showPassword ? "text" : "password"}
+                  name="password"
+                  value={formData.password}
+                  onChange={handleInputChange}
+                  placeholder="Contraseña"
+                  leftIcon={<Lock className="h-5 w-5" />}
+                  rightIcon={showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                  onRightIconClick={() => setShowPassword(!showPassword)}
+                  required
+                />
+              </div>
 
-            {/* Campo Password */}
-            <Input
-              type={showPassword ? "text" : "password"}
-              name="password"
-              value={formData.password}
-              onChange={handleInputChange}
-              placeholder="Contraseña"
-              icon={<LockIcon />}
-              rightIcon={showPassword ? <EyeOffIcon /> : <EyeIcon />}
-              onRightIconClick={() => setShowPassword(!showPassword)}
-              required
-            />
-
-            {/* Botón Register */}
-            <Button
-              type="submit"
-              disabled={isLoading}
-              className="w-full mt-6"
-            >
-              {isLoading ? 'Creando cuenta...' : 'Registrarse'}
-            </Button>
-          </form>
-
-          {/* Link para ir al login */}
-          <div className="mt-6 text-center">
-            <div className="text-sm text-gray-600">
-              ¿Ya tienes cuenta?{' '}
-              <a 
-                href="/auth/login" 
-                className="text-blue-600 hover:text-blue-700 font-medium transition-colors"
+              {/* Botón Register */}
+              <Button
+                type="submit"
+                disabled={isLoading}
+                className="w-full mt-6 bg-blue-600 hover:bg-blue-700 text-white"
+                size="lg"
               >
-                Inicia sesión
-              </a>
+                {isLoading ? 'Creando cuenta...' : 'Registrarse'}
+              </Button>
+            </form>
+
+            {/* Link para ir al login */}
+            <div className="mt-6 text-center">
+              <div className="text-sm text-muted-foreground">
+                ¿Ya tienes cuenta?{' '}
+                <a 
+                  href="/auth/login" 
+                  className="text-primary hover:text-primary/80 font-medium transition-colors"
+                >
+                  Inicia sesión
+                </a>
+              </div>
             </div>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   )

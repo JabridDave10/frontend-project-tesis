@@ -1,14 +1,18 @@
 'use client'
 
 import { useState } from 'react'
-import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { usePermissions } from '@/hooks/usePermissions'
+import { SidebarLogo } from './SidebarLogo'
+import { SidebarMenuItem } from './SidebarMenuItem'
+import { SidebarLoading } from './SidebarLoading'
 
 interface MenuItem {
   name: string
   href: string
   icon: React.ReactNode
-  submenu?: { name: string; href: string }[]
+  permission?: string
+  submenu?: { name: string; href: string; permission?: string }[]
 }
 
 interface SidebarProps {
@@ -19,6 +23,7 @@ interface SidebarProps {
 export const Sidebar = ({ isOpen, onToggle }: SidebarProps) => {
   const pathname = usePathname()
   const [openMenus, setOpenMenus] = useState<string[]>([])
+  const { hasPermission, loading } = usePermissions()
 
   const toggleMenu = (menuName: string) => {
     setOpenMenus(prev =>
@@ -32,6 +37,7 @@ export const Sidebar = ({ isOpen, onToggle }: SidebarProps) => {
     {
       name: 'Dashboard',
       href: '/dashboard',
+      //permission: 'Dashboard',
       icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
@@ -41,6 +47,7 @@ export const Sidebar = ({ isOpen, onToggle }: SidebarProps) => {
     {
       name: 'Rutas',
       href: '/dashboard/rutas',
+      //permission: 'Rutas',
       icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
@@ -55,16 +62,19 @@ export const Sidebar = ({ isOpen, onToggle }: SidebarProps) => {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
         </svg>
       ),
+      //permission: 'Empleados',
       submenu: [
-        { name: 'Administrativos', href: '/dashboard/empleados/administrativos' },
-        { name: 'Conductores', href: '/dashboard/empleados/conductores' },
-        { name: 'Agregar', href: '/dashboard/empleados/agregar' },
-        { name: 'Editar', href: '/dashboard/empleados/editar' }
+        { name: 'Administrativos', href: '/dashboard/empleados/administrativos', /* permission: 'Administrativos' */ },
+        { name: 'Conductores', href: '/dashboard/empleados/conductores', /* permission: 'Conductores' */ },
+        { name: 'Agregar', href: '/dashboard/empleados/agregar', /* //permission: 'Agregar'  */},
+        { name: 'Editar', href: '/dashboard/empleados/editar', /* //permission: 'Editar' */ },
+        { name: 'Eliminar', href: '/dashboard/empleados/eliminar', /* //permission: 'Eliminar'  */}
       ]
     },
     {
       name: 'Camiones',
       href: '/dashboard/camiones',
+      //permission: 'Camiones',
       icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
@@ -74,6 +84,7 @@ export const Sidebar = ({ isOpen, onToggle }: SidebarProps) => {
     {
       name: 'Configuraciones',
       href: '/dashboard/configuraciones',
+      //permission: 'Configuraciones',
       icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
@@ -83,116 +94,38 @@ export const Sidebar = ({ isOpen, onToggle }: SidebarProps) => {
     }
   ]
 
+  const filteredMenuItems = menuItems.filter((item) => {
+    // Si no tiene permiso especificado, mostrar por defecto
+    if (!item.permission) return true
+    // Verificar si el usuario tiene el permiso
+    return hasPermission(item.permission)
+  })
+
   return (
-    <>
-      {/* Overlay para móvil */}
-      {isOpen && (
-        <div
-          className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
-          onClick={onToggle}
-        />
-      )}
+    <aside className="w-64 bg-gradient-to-b from-blue-600 to-blue-800 text-white min-h-screen flex flex-col">
+      <SidebarLogo />
 
-      {/* Sidebar */}
-      <aside
-        className={`
-          fixed lg:static inset-y-0 left-0 z-50
-          bg-gradient-to-b from-blue-600 to-blue-800 text-white
-          min-h-screen flex flex-col
-          transition-all duration-300 ease-in-out
-          ${isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
-          ${isOpen ? 'w-64' : 'lg:w-20 w-64'}
-        `}
-      >
-        {/* Toggle Button */}
-        <button
-          onClick={onToggle}
-          className="absolute -right-3 top-6 bg-blue-600 hover:bg-blue-700 rounded-full p-1.5 shadow-lg hidden lg:block z-10 transition-colors"
-        >
-          <svg
-            className={`w-4 h-4 transition-transform duration-300 ${isOpen ? '' : 'rotate-180'}`}
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
-        </button>
-
-        {/* Logo */}
-        <div className={`p-6 flex flex-col items-center border-b border-blue-500 transition-all duration-300 ${isOpen ? '' : 'lg:px-2'}`}>
-          <div className={`bg-white rounded-full flex items-center justify-center mb-3 transition-all duration-300 ${isOpen ? 'w-16 h-16' : 'lg:w-10 lg:h-10 w-16 h-16'}`}>
-            <div className={`bg-gradient-to-br from-pink-400 to-blue-500 rounded-full flex items-center justify-center transition-all duration-300 ${isOpen ? 'w-12 h-12' : 'lg:w-8 lg:h-8 w-12 h-12'}`}>
-              <span className={`text-white font-bold transition-all duration-300 ${isOpen ? 'text-xl' : 'lg:text-sm text-xl'}`}>M</span>
-            </div>
-          </div>
-          {isOpen && (
-            <h1 className="text-sm font-semibold text-center animate-fadeIn">
-              Transportadora Algrt
-            </h1>
-          )}
-        </div>
-
-        {/* Menu Items */}
-        <nav className="flex-1 py-4 overflow-y-auto">
-          {menuItems.map((item) => (
-            <div key={item.name}>
-              {item.submenu ? (
-                <>
-                  <button
-                    onClick={() => toggleMenu(item.name)}
-                    className={`w-full py-3 flex items-center hover:bg-blue-700 transition-colors ${isOpen ? 'px-6 justify-between' : 'lg:px-3 lg:justify-center px-6 justify-between'}`}
-                    title={!isOpen ? item.name : ''}
-                  >
-                    <div className="flex items-center gap-3">
-                      {item.icon}
-                      {isOpen && <span className="text-sm">{item.name}</span>}
-                    </div>
-                    {isOpen && (
-                      <svg
-                        className={`w-4 h-4 transition-transform ${openMenus.includes(item.name) ? 'rotate-180' : ''}`}
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                      </svg>
-                    )}
-                  </button>
-                  {openMenus.includes(item.name) && isOpen && (
-                    <div className="bg-blue-900 bg-opacity-50">
-                      {item.submenu.map((subItem) => (
-                        <Link
-                          key={subItem.name}
-                          href={subItem.href}
-                          className={`block px-6 py-2 pl-14 text-sm hover:bg-blue-700 transition-colors ${
-                            pathname === subItem.href ? 'bg-blue-700' : ''
-                          }`}
-                          onClick={() => window.innerWidth < 1024 && onToggle()}
-                        >
-                          {subItem.name}
-                        </Link>
-                      ))}
-                    </div>
-                  )}
-                </>
-              ) : (
-                <Link
-                  href={item.href}
-                  className={`py-3 flex items-center gap-3 hover:bg-blue-700 transition-colors ${
-                    pathname === item.href ? 'bg-blue-700' : ''
-                  } ${isOpen ? 'px-6' : 'lg:px-3 lg:justify-center px-6'}`}
-                  title={!isOpen ? item.name : ''}
-                  onClick={() => window.innerWidth < 1024 && onToggle()}
-                >
-                  {item.icon}
-                  {isOpen && <span className="text-sm">{item.name}</span>}
-                </Link>
-              )}
-            </div>
-          ))}
-        </nav>
-      </aside>
-    </>
+      <nav className="flex-1 py-4">
+        {loading ? (
+          <SidebarLoading />
+        ) : (
+          filteredMenuItems.map((item) => (
+            <SidebarMenuItem
+              key={item.name}
+              name={item.name}
+              href={item.href}
+              icon={item.icon}
+              permission={item.permission}
+              submenu={item.submenu}
+              isActive={pathname === item.href}
+              isOpen={openMenus.includes(item.name)}
+              onToggle={() => toggleMenu(item.name)}
+              currentPath={pathname}
+              hasPermission={hasPermission}
+            />
+          ))
+        )}
+      </nav>
+    </aside>
   )
 }

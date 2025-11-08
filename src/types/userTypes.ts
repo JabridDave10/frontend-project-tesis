@@ -51,5 +51,13 @@ export interface LoginResponse {
     email: string;
     first_name: string;
     last_name: string;
+    role?: {
+      id: number;
+      nombre: string;
+      permissions?: Array<{
+        id: number;
+        nombre: string;
+      }>;
+    };
   };
 }
