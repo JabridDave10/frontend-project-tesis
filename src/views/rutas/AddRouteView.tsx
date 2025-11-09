@@ -8,8 +8,8 @@ import { VehiclesService } from '@/services/vehiclesService'
 import { CreateRouteDto } from '@/types/routeTypes'
 import { Driver } from '@/types/driverTypes'
 import { Vehicle } from '@/types/vehicleTypes'
-import { Input } from '@/components/ui/Input'
-import { Button } from '@/components/ui/Button'
+import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
 
 export const AddRouteView = () => {
   const router = useRouter()

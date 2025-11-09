@@ -6,8 +6,8 @@ import { VehiclesService } from '@/services/vehiclesService'
 import { DriversService } from '@/services/driversService'
 import { CreateVehicleDto } from '@/types/vehicleTypes'
 import { Driver } from '@/types/driverTypes'
-import { Input } from '@/components/ui/Input'
-import { Button } from '@/components/ui/Button'
+import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
 
 export const AddVehicleView = () => {
   const router = useRouter()
