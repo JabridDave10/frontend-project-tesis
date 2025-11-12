@@ -10,44 +10,30 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode
 }) {
-  const [showCompanyModal, setShowCompanyModal] = useState(false)
-  const [isChecking, setIsChecking] = useState(true)
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true)
 
+  // En móvil, el sidebar empieza cerrado
   useEffect(() => {
-    // Verificar si el usuario tiene id_company
-    if (typeof window !== 'undefined') {
-      const userStr = localStorage.getItem('user')
-      if (userStr) {
-        try {
-          const user = JSON.parse(userStr)
-          if (!user.id_company) {
-            // Si no tiene id_company, mostrar el modal
-            setShowCompanyModal(true)
-          }
-        } catch (error) {
-          console.error('Error al parsear usuario:', error)
-        }
+    const handleResize = () => {
+      if (window.innerWidth < 1024) {
+        setIsSidebarOpen(false)
+      } else {
+        setIsSidebarOpen(true)
       }
-      setIsChecking(false)
     }
+
+    // Ejecutar al montar el componente
+    handleResize()
+
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
   }, [])
-
-  const handleCompanySuccess = () => {
-    // Cuando se registre la empresa exitosamente, cerrar el modal
-    // El modal ya actualizó el usuario en localStorage
-    setShowCompanyModal(false)
-  }
-
-  // Mientras se verifica, no mostrar nada
-  if (isChecking) {
-    return null
-  }
 
   return (
     <div className="flex min-h-screen bg-gray-50">
-      <Sidebar />
+      <Sidebar isOpen={isSidebarOpen} onToggle={() => setIsSidebarOpen(!isSidebarOpen)} />
       <div className="flex-1 flex flex-col">
-        <DashboardHeader title="Dashboard" />
+        <DashboardHeader title="Dashboard" onMenuClick={() => setIsSidebarOpen(!isSidebarOpen)} />
         <main className="flex-1 overflow-auto">
           {children}
         </main>

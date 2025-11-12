@@ -19,14 +19,19 @@ export class AxiosUserManagement {
   async registerUser(data: RegisterUserDto): Promise<RegisterResponse | null> {
     try {
       console.log('Enviando datos de registro:', data)
-      
+
       const response = await this.api.post('/users/register', data)
-      
+
       console.log('Respuesta del servidor:', response.data)
-      
+
+      // Guardar usuario en localStorage para usar en el siguiente paso
+      if (response.data.user) {
+        localStorage.setItem('user', JSON.stringify(response.data.user))
+      }
+
       // Mostrar mensaje de éxito
       toast.success('Usuario registrado exitosamente')
-      
+
       return response.data
     } catch (error: any) {
       console.error('Error al registrar usuario:', error)
@@ -36,9 +41,9 @@ export class AxiosUserManagement {
         console.error('Status:', error.response.status)
         console.error('Data:', error.response.data)
         console.error('Headers:', error.response.headers)
-        
+
         const errorData: ErrorResponse = error.response.data
-        
+
         // Error de validación (400)
         if (error.response.status === 400) {
           if (errorData.errors && errorData.errors.length > 0) {
@@ -50,6 +55,10 @@ export class AxiosUserManagement {
           } else {
             toast.error(errorData.message || 'Error de validación')
           }
+        }
+        // Error de conflicto - email duplicado (409)
+        else if (error.response.status === 409) {
+          toast.error(errorData.message || 'El email ya está registrado')
         }
         // Error de servidor (500)
         else if (error.response.status === 500) {

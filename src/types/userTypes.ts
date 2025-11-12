@@ -7,8 +7,8 @@ export interface RegisterUserDto {
   email: string;
   phone: string;
   password: string;
-  id_role?: number;
   photo?: string;
+  id_role?: number;
 }
 
 export interface RegisterResponse {

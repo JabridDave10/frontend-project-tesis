@@ -128,4 +128,76 @@ export class DriversService {
       return false
     }
   }
+
+  // Subir foto de perfil del usuario
+  async uploadUserPhoto(userId: number, file: File): Promise<boolean> {
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+
+      const response = await this.api.post(`/users/${userId}/upload-photo`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      })
+
+      console.log('Foto de perfil subida:', response.data)
+      toast.success('Foto de perfil subida exitosamente')
+      return true
+    } catch (error: any) {
+      console.error('Error al subir foto de perfil:', error)
+
+      if (error.response) {
+        const errorData = error.response.data
+
+        if (error.response.status === 400) {
+          toast.error(errorData.message || 'Archivo inválido')
+        } else if (error.response.status === 404) {
+          toast.error('Usuario no encontrado')
+        } else {
+          toast.error('Error al subir foto de perfil')
+        }
+      } else {
+        toast.error('Error de conexión al subir foto')
+      }
+
+      return false
+    }
+  }
+
+  // Subir foto de licencia del conductor
+  async uploadDriverLicense(driverId: number, file: File): Promise<boolean> {
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+
+      const response = await this.api.post(`/drivers/${driverId}/upload-license`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      })
+
+      console.log('Licencia subida:', response.data)
+      toast.success('Licencia subida exitosamente')
+      return true
+    } catch (error: any) {
+      console.error('Error al subir licencia:', error)
+
+      if (error.response) {
+        const errorData = error.response.data
+
+        if (error.response.status === 400) {
+          toast.error(errorData.message || 'Archivo inválido')
+        } else if (error.response.status === 404) {
+          toast.error('Conductor no encontrado')
+        } else {
+          toast.error('Error al subir licencia')
+        }
+      } else {
+        toast.error('Error de conexión al subir licencia')
+      }
+
+      return false
+    }
+  }
 }
