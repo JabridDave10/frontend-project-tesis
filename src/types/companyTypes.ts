@@ -1,14 +1,15 @@
 // Company types
 export interface CreateCompanyDto {
   name: string
-  email: string
-  password: string
+  nit?: string
+  logo?: string
 }
 
 export interface Company {
-  id: number
+  id_company: number
   name: string
-  email: string
+  nit: string
+  logo: string
   created_at?: string
   modified_at?: string | null
   deleted_at?: string | null
