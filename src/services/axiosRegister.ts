@@ -90,7 +90,8 @@ export class AxiosUserManagement {
       const response = await this.api.post('/auth/login', data)
 
       console.log('Respuesta del servidor:', response.data)
-
+      console.log('Token:', response.data.access_token)
+      console.log('User:', response.data.user)
       // Guardar token en localStorage
       if (response.data.access_token) {
         localStorage.setItem('token', response.data.access_token)

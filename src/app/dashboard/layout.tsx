@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { Sidebar } from '@/components/dashboard/Sidebar'
 import { DashboardHeader } from '@/components/dashboard/DashboardHeader'
+import { CompanyRegistrationModal } from '@/components/company/CompanyRegistrationModal'
 
 export default function DashboardLayout({
   children,
@@ -37,6 +38,13 @@ export default function DashboardLayout({
           {children}
         </main>
       </div>
+
+      {/* Modal de registro de empresa - Obligatorio si no tiene id_company */}
+      {/* <CompanyRegistrationModal
+        open={showCompanyModal}
+        onSuccess={handleCompanySuccess}
+        required={true}
+      /> */}
     </div>
   )
 }

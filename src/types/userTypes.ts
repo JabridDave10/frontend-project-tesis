@@ -51,6 +51,7 @@ export interface LoginResponse {
     email: string;
     first_name: string;
     last_name: string;
+    id_company?: number;
     role?: {
       id: number;
       nombre: string;
