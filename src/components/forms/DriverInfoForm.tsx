@@ -1,6 +1,6 @@
 'use client'
 
-import { Button } from '@/components/ui/Button'
+import { Button } from '@/components/ui/button'
 import { FileUpload } from '@/components/ui/FileUpload'
 import { LicenseInfoSection } from './LicenseInfoSection'
 import { MedicalInfoSection } from './MedicalInfoSection'

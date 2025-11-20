@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { stockService } from '@/services/stockService';
 import { Stock } from '@/types/productTypes';
-import { Button } from '@/components/ui/Button';
+import { Button } from '@/components/ui/button';
 
 // TODO: Obtener de un servicio de bodegas
 const WAREHOUSES = [

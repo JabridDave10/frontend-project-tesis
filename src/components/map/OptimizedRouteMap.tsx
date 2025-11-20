@@ -117,7 +117,7 @@ export default function OptimizedRouteMap({
           return (
             <div key={route.route_code}>
               {/* Línea de ruta */}
-              {route.route_coordinates.length > 0 && (
+              {route.route_coordinates && route.route_coordinates.length > 0 ? (
                 <Polyline
                   positions={route.route_coordinates}
                   color={routeColor}
@@ -125,6 +125,30 @@ export default function OptimizedRouteMap({
                   opacity={0.7}
                   dashArray=""
                 />
+              ) : (
+                // Si no hay coordenadas de ruta, dibujar línea recta entre origen y destinos
+                route.assignments.length > 0 && route.origin_latitude && route.origin_longitude && (
+                  <>
+                    {route.assignments.map((assignment, idx) => {
+                      if (!assignment.cargo.destination_latitude || !assignment.cargo.destination_longitude) {
+                        return null
+                      }
+                      return (
+                        <Polyline
+                          key={`fallback-${route.route_code}-${idx}`}
+                          positions={[
+                            [route.origin_latitude, route.origin_longitude],
+                            [assignment.cargo.destination_latitude, assignment.cargo.destination_longitude]
+                          ]}
+                          color={routeColor}
+                          weight={3}
+                          opacity={0.5}
+                          dashArray="10, 5"
+                        />
+                      )
+                    })}
+                  </>
+                )
               )}
 
               {/* Marcador de origen */}

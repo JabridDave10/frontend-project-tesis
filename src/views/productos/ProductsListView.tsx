@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { productsService } from '@/services/productsService';
 import { categoriesService } from '@/services/categoriesService';
 import { Product, ProductCategory } from '@/types/productTypes';
-import { Button } from '@/components/ui/Button';
+import { Button } from '@/components/ui/button';
 
 export function ProductsListView() {
   const router = useRouter();

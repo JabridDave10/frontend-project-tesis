@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { categoriesService } from '@/services/categoriesService';
 import { ProductCategory, STORAGE_TYPE_LABELS } from '@/types/productTypes';
-import { Button } from '@/components/ui/Button';
+import { Button } from '@/components/ui/button';
 
 export function CategoriesListView() {
   const router = useRouter();

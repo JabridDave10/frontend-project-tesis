@@ -1,7 +1,7 @@
 'use client'
 
-import { Input } from '@/components/ui/Input'
-import { Button } from '@/components/ui/Button'
+import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
 import { FileUpload } from '@/components/ui/FileUpload'
 import { RegisterUserDto } from '@/types/userTypes'
 

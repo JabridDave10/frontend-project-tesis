@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { stockService } from '@/services/stockService';
 import { productsService } from '@/services/productsService';
 import { StockMovement, Product, MOVEMENT_TYPE_LABELS } from '@/types/productTypes';
-import { Button } from '@/components/ui/Button';
+import { Button } from '@/components/ui/button';
 
 export function StockMovementsView() {
   const router = useRouter();

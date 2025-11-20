@@ -1,6 +1,6 @@
 'use client'
 
-import { Input } from '@/components/ui/Input'
+import { Input } from '@/components/ui/input'
 import { MultiSelectLicenseCategories } from '@/components/ui/MultiSelectLicenseCategories'
 import { LicenseCategory, ISSUING_AUTHORITIES } from '@/types/driverTypes'
 

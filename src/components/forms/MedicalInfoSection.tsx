@@ -1,6 +1,6 @@
 'use client'
 
-import { Input } from '@/components/ui/Input'
+import { Input } from '@/components/ui/input'
 import { BloodType, BLOOD_TYPE_OPTIONS } from '@/types/driverTypes'
 
 interface MedicalInfoData {

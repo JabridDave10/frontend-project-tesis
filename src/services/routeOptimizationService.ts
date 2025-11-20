@@ -100,11 +100,16 @@ export class RouteOptimizationService {
     const optimizedRoutes: OptimizedRoute[] = []
     const assignedCargos = new Set<number>()
     const availableVehicles = [...vehicles]
-    const availableDrivers = drivers.filter(d => d.status === 'disponible')
+    
+    // Filtrar conductores disponibles (si no hay disponibles, usar todos)
+    let availableDrivers = drivers.filter(d => d.status === 'disponible')
+    if (availableDrivers.length === 0 && drivers.length > 0) {
+      availableDrivers = drivers // Usar todos los conductores si no hay disponibles
+    }
 
-    // Filtrar vehículos disponibles
+    // Filtrar vehículos disponibles (más flexible: activos, con o sin conductor)
     const availableVehiclesFiltered = availableVehicles.filter(
-      v => v.status === 'activo' && !v.id_driver
+      v => v.status === 'activo'
     )
 
     // Ordenar cargas por prioridad y peso
@@ -122,46 +127,115 @@ export class RouteOptimizationService {
     for (const cargo of sortedCargos) {
       if (assignedCargos.has(cargo.id_cargo)) continue
 
-      // Buscar vehículo adecuado
-      const suitableVehicle = availableVehiclesFiltered.find(vehicle => {
-        // Verificar capacidad de peso
-        if (cargo.weight > vehicle.weight_capacity) return false
+      // Buscar el mejor vehículo para esta carga considerando:
+      // 1. Capacidad disponible
+      // 2. Rutas existentes para distribuir mejor
+      const suitableVehicles = availableVehiclesFiltered
+        .map(vehicle => {
+          // Verificar capacidad de peso
+          if (cargo.weight > vehicle.weight_capacity) return null
 
-        // Verificar capacidad de volumen si aplica
-        if (cargo.volume && vehicle.volume_capacity && cargo.volume > vehicle.volume_capacity) {
-          return false
-        }
+          // Verificar capacidad de volumen si aplica
+          if (cargo.volume && vehicle.volume_capacity && cargo.volume > vehicle.volume_capacity) {
+            return null
+          }
 
-        // Verificar tipo de vehículo apropiado
-        // Cargas pequeñas pueden ir en motos, cargas grandes requieren camiones
-        if (cargo.weight < 50 && vehicle.vehicle_type === 'moto') return true
-        if (cargo.weight >= 50 && ['camion', 'camion_articulado'].includes(vehicle.vehicle_type)) {
-          return true
-        }
-        if (cargo.weight < 500 && ['carro', 'furgoneta'].includes(vehicle.vehicle_type)) {
-          return true
-        }
+          // Verificar tipo de vehículo apropiado (lógica más flexible)
+          let isSuitable = false
+          if (cargo.weight <= vehicle.weight_capacity) {
+            // Cargas muy pequeñas pueden ir en motos
+            if (cargo.weight < 50 && vehicle.vehicle_type === 'moto') isSuitable = true
+            // Cargas medianas pueden ir en carros o furgonetas
+            else if (cargo.weight < 500 && ['carro', 'furgoneta'].includes(vehicle.vehicle_type)) {
+              isSuitable = true
+            }
+            // Cargas grandes requieren camiones
+            else if (cargo.weight >= 50 && ['camion', 'camion_articulado'].includes(vehicle.vehicle_type)) {
+              isSuitable = true
+            }
+            // Si no cumple ninguna condición específica pero tiene capacidad, permitirlo
+            else isSuitable = true
+          }
 
-        return false
+          if (!isSuitable) return null
+
+          // Buscar ruta existente para este vehículo
+          const existingRoute = optimizedRoutes.find(
+            r => r.id_vehicle === vehicle.id_vehicle && r.status === 'pendiente'
+          )
+
+          // Calcular capacidad disponible
+          const usedWeight = existingRoute?.total_weight || 0
+          const usedVolume = existingRoute?.total_volume || 0
+          const availableWeight = vehicle.weight_capacity - usedWeight
+          const availableVolume = vehicle.volume_capacity 
+            ? vehicle.volume_capacity - usedVolume 
+            : Infinity
+
+          // Verificar que la carga cabe
+          if (cargo.weight > availableWeight || (cargo.volume && cargo.volume > availableVolume)) {
+            return null
+          }
+
+          return {
+            vehicle,
+            existingRoute,
+            availableWeight,
+            availableVolume,
+            utilization: usedWeight / vehicle.weight_capacity // Porcentaje de uso
+          }
+        })
+        .filter((item): item is NonNullable<typeof item> => item !== null)
+
+      if (suitableVehicles.length === 0) {
+        console.log(`No se encontró vehículo adecuado para carga ${cargo.id_cargo} (peso: ${cargo.weight} kg)`)
+        continue
+      }
+
+      // Seleccionar el mejor vehículo:
+      // 1. Preferir vehículos con rutas existentes que tengan espacio
+      // 2. Si hay múltiples opciones, elegir el que tenga menor utilización (distribuir mejor)
+      // 3. Si no hay rutas existentes, crear una nueva en el vehículo menos utilizado
+      suitableVehicles.sort((a, b) => {
+        // Priorizar vehículos con rutas existentes
+        if (a.existingRoute && !b.existingRoute) return -1
+        if (!a.existingRoute && b.existingRoute) return 1
+        
+        // Si ambos tienen o no tienen ruta, priorizar menor utilización
+        return a.utilization - b.utilization
       })
 
-      if (!suitableVehicle) continue
+      const selected = suitableVehicles[0]
+      const suitableVehicle = selected.vehicle
+      let existingRoute = selected.existingRoute
 
-      // Buscar conductor disponible
-      const availableDriver = availableDrivers.find(d => d.status === 'disponible')
-      if (!availableDriver) continue
+      // Buscar conductor disponible (opcional - si no hay, crear ruta sin conductor)
+      let availableDriver = availableDrivers.find(d => d.status === 'disponible')
+      if (!availableDriver && availableDrivers.length > 0) {
+        availableDriver = availableDrivers[0] // Usar el primero disponible
+      }
+      
+      // Si no hay conductor, usar un conductor temporal (opcional)
+      // Por ahora permitimos crear rutas sin conductor asignado
+      const driverId = availableDriver ? availableDriver.id_driver : 0 // 0 indica sin conductor
+      const driverInfo = availableDriver ? {
+        id_driver: availableDriver.id_driver,
+        first_name: availableDriver.first_name || 'Sin',
+        last_name: availableDriver.last_name || 'Conductor',
+        phone: availableDriver.phone
+      } : {
+        id_driver: 0,
+        first_name: 'Sin',
+        last_name: 'Conductor',
+        phone: undefined
+      }
 
-      // Crear o agregar a ruta existente
-      let existingRoute = optimizedRoutes.find(
-        r => r.id_vehicle === suitableVehicle.id_vehicle && r.status === 'pendiente'
-      )
-
+      // Crear nueva ruta si no existe
       if (!existingRoute) {
-        // Crear nueva ruta
         existingRoute = {
           route_code: `ROUTE-${Date.now()}-${optimizedRoutes.length + 1}`,
           id_vehicle: suitableVehicle.id_vehicle,
-          id_driver: availableDriver.id_driver,
+          id_driver: driverId, // Puede ser 0 si no hay conductor
           origin_address: origin.address,
           origin_latitude: origin.lat,
           origin_longitude: origin.lng,
@@ -174,17 +248,7 @@ export class RouteOptimizationService {
           status: 'pendiente'
         }
         optimizedRoutes.push(existingRoute)
-      }
-
-      // Verificar que la carga cabe en la ruta
-      const newTotalWeight = existingRoute.total_weight + cargo.weight
-      const newTotalVolume = (existingRoute.total_volume || 0) + (cargo.volume || 0)
-
-      if (
-        newTotalWeight > suitableVehicle.weight_capacity ||
-        (suitableVehicle.volume_capacity && newTotalVolume > suitableVehicle.volume_capacity)
-      ) {
-        continue // No cabe, buscar otro vehículo
+        console.log(`Nueva ruta creada para vehículo ${suitableVehicle.license_plate}`)
       }
 
       // Agregar carga a la ruta
@@ -197,25 +261,25 @@ export class RouteOptimizationService {
           weight_capacity: suitableVehicle.weight_capacity,
           volume_capacity: suitableVehicle.volume_capacity
         },
-        driver: {
-          id_driver: availableDriver.id_driver,
-          first_name: availableDriver.first_name || '',
-          last_name: availableDriver.last_name || '',
-          phone: availableDriver.phone
-        },
+        driver: driverInfo,
         route_order: existingRoute.assignments.length + 1
       })
 
-      existingRoute.total_weight = newTotalWeight
-      existingRoute.total_volume = newTotalVolume
+      existingRoute.total_weight += cargo.weight
+      existingRoute.total_volume = (existingRoute.total_volume || 0) + (cargo.volume || 0)
       assignedCargos.add(cargo.id_cargo)
+      console.log(`Carga ${cargo.id_cargo} asignada a vehículo ${suitableVehicle.license_plate} (ruta: ${existingRoute.route_code})`)
     }
+
+    console.log(`Total de rutas creadas antes de optimizar: ${optimizedRoutes.length}`)
+    console.log(`Cargos asignados: ${assignedCargos.size} de ${sortedCargos.length}`)
 
     // Optimizar orden de paradas para cada ruta
     for (const route of optimizedRoutes) {
       await this.optimizeRouteOrder(route, origin)
     }
 
+    console.log(`Total de rutas optimizadas: ${optimizedRoutes.length}`)
     return optimizedRoutes
   }
 
@@ -303,11 +367,25 @@ export class RouteOptimizationService {
         const key = `${prevPoint.id}-${point.id}`
         const routeInfo = distanceMatrix[key]
 
-        if (routeInfo) {
+        if (routeInfo && routeInfo.coordinates && routeInfo.coordinates.length > 0) {
           totalDistance += routeInfo.distance
           totalDuration += routeInfo.duration
-          // Agregar coordenadas de la ruta (sin el origen que ya está)
-          routeCoordinates.push(...routeInfo.coordinates.slice(1))
+          // Agregar coordenadas de la ruta (sin el primer punto que es el origen)
+          // y sin el último punto que es el destino (lo agregamos después)
+          const routeCoords = routeInfo.coordinates.slice(1, -1)
+          if (routeCoords.length > 0) {
+            routeCoordinates.push(...routeCoords)
+          }
+        } else {
+          // Si no hay ruta calculada, usar línea recta como fallback
+          const prevLat = optimizedOrder[i - 1].lat
+          const prevLng = optimizedOrder[i - 1].lng
+          if (prevLat && prevLng && point.lat && point.lng) {
+            // Agregar punto intermedio para la línea recta
+            const midLat = (prevLat + point.lat) / 2
+            const midLng = (prevLng + point.lng) / 2
+            routeCoordinates.push([midLat, midLng])
+          }
         }
 
         // Agregar coordenadas del destino

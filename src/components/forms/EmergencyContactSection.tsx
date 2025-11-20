@@ -1,6 +1,6 @@
 'use client'
 
-import { Input } from '@/components/ui/Input'
+import { Input } from '@/components/ui/input'
 
 interface EmergencyContactData {
   emergency_contact_name: string
