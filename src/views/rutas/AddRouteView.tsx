@@ -1,13 +1,13 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { RoutesService } from '@/services/routesService'
 import { DriversService } from '@/services/driversService'
 import { VehiclesService } from '@/services/vehiclesService'
 import { CreateRouteDto } from '@/types/routeTypes'
 import { Driver } from '@/types/driverTypes'
-import { Vehicle } from '@/types/vehicleTypes'
+import { Vehicle, isDriverCompatible } from '@/types/vehicleTypes'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 
@@ -54,6 +54,55 @@ export const AddRouteView = () => {
     setDrivers(driversData)
     setVehicles(vehiclesData)
   }
+
+  // Filter compatible drivers based on selected vehicle
+  const selectedVehicle = useMemo(() => {
+    if (!routeData.id_vehicle) return null
+    return vehicles.find(v => v.id_vehicle === routeData.id_vehicle) || null
+  }, [routeData.id_vehicle, vehicles])
+
+  const compatibleDrivers = useMemo(() => {
+    if (!selectedVehicle) return drivers
+    return drivers.filter(driver => {
+      const categories = Array.isArray(driver.license_categories)
+        ? driver.license_categories
+        : typeof driver.license_categories === 'string'
+          ? (driver.license_categories as string).split(',').map(c => c.trim())
+          : []
+      return isDriverCompatible(categories, selectedVehicle.vehicle_type)
+    })
+  }, [drivers, selectedVehicle])
+
+  // Filter compatible vehicles based on selected driver
+  const selectedDriver = useMemo(() => {
+    if (!routeData.id_driver) return null
+    return drivers.find(d => d.id_driver === routeData.id_driver) || null
+  }, [routeData.id_driver, drivers])
+
+  const compatibleVehicles = useMemo(() => {
+    if (!selectedDriver) return vehicles
+    const categories = Array.isArray(selectedDriver.license_categories)
+      ? selectedDriver.license_categories
+      : typeof selectedDriver.license_categories === 'string'
+        ? (selectedDriver.license_categories as string).split(',').map(c => c.trim())
+        : []
+    return vehicles.filter(v => isDriverCompatible(categories, v.vehicle_type))
+  }, [vehicles, selectedDriver])
+
+  // Check compatibility warning
+  const compatibilityWarning = useMemo(() => {
+    if (!selectedDriver || !selectedVehicle) return null
+    const categories = Array.isArray(selectedDriver.license_categories)
+      ? selectedDriver.license_categories
+      : typeof selectedDriver.license_categories === 'string'
+        ? (selectedDriver.license_categories as string).split(',').map(c => c.trim())
+        : []
+    const compatible = isDriverCompatible(categories, selectedVehicle.vehicle_type)
+    if (!compatible) {
+      return `El conductor ${selectedDriver.first_name} ${selectedDriver.last_name} (Lic: ${categories.join(', ')}) no tiene licencia compatible con el vehiculo tipo ${selectedVehicle.vehicle_type}`
+    }
+    return null
+  }, [selectedDriver, selectedVehicle])
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
@@ -219,8 +268,40 @@ export const AddRouteView = () => {
 
             {/* Asignación */}
             <div>
-              <h2 className="text-lg font-semibold text-gray-800 mb-4">Asignación</h2>
+              <h2 className="text-lg font-semibold text-gray-800 mb-4">Asignacion</h2>
+
+              {compatibilityWarning && (
+                <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2">
+                  <span className="text-red-500 mt-0.5">&#9888;</span>
+                  <p className="text-sm text-red-700">{compatibilityWarning}</p>
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Vehiculo
+                  </label>
+                  <select
+                    name="id_vehicle"
+                    value={routeData.id_vehicle || ''}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:bg-white outline-none transition-all text-gray-800"
+                  >
+                    <option value="">Sin asignar</option>
+                    {compatibleVehicles.map((vehicle) => (
+                      <option key={vehicle.id_vehicle} value={vehicle.id_vehicle}>
+                        {vehicle.license_plate} - {vehicle.brand} {vehicle.model} ({vehicle.weight_capacity}kg)
+                      </option>
+                    ))}
+                  </select>
+                  {selectedDriver && compatibleVehicles.length < vehicles.length && (
+                    <p className="mt-1 text-xs text-blue-600">
+                      Mostrando {compatibleVehicles.length} de {vehicles.length} vehiculos compatibles con la licencia del conductor
+                    </p>
+                  )}
+                </div>
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Conductor
@@ -232,31 +313,17 @@ export const AddRouteView = () => {
                     className="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:bg-white outline-none transition-all text-gray-800"
                   >
                     <option value="">Sin asignar</option>
-                    {drivers.map((driver) => (
+                    {compatibleDrivers.map((driver) => (
                       <option key={driver.id_driver} value={driver.id_driver}>
                         {driver.first_name} {driver.last_name} - {Array.isArray(driver.license_categories) ? driver.license_categories.join(', ') : driver.license_categories || 'N/A'}
                       </option>
                     ))}
                   </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Vehículo
-                  </label>
-                  <select
-                    name="id_vehicle"
-                    value={routeData.id_vehicle || ''}
-                    onChange={handleInputChange}
-                    className="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:bg-white outline-none transition-all text-gray-800"
-                  >
-                    <option value="">Sin asignar</option>
-                    {vehicles.map((vehicle) => (
-                      <option key={vehicle.id_vehicle} value={vehicle.id_vehicle}>
-                        {vehicle.license_plate} - {vehicle.brand} {vehicle.model} ({vehicle.weight_capacity}kg)
-                      </option>
-                    ))}
-                  </select>
+                  {selectedVehicle && compatibleDrivers.length < drivers.length && (
+                    <p className="mt-1 text-xs text-blue-600">
+                      Mostrando {compatibleDrivers.length} de {drivers.length} conductores compatibles con el tipo de vehiculo
+                    </p>
+                  )}
                 </div>
               </div>
             </div>

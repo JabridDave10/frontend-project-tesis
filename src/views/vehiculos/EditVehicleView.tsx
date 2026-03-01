@@ -4,21 +4,24 @@ import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { VehiclesService } from '@/services/vehiclesService'
 import { DriversService } from '@/services/driversService'
-import { CreateVehicleDto, isDriverCompatible, getRequiredLicenses, VEHICLE_TYPE_LABELS, PLATE_FORMATS, validatePlateFormat } from '@/types/vehicleTypes'
+import { UpdateVehicleDto, Vehicle, isDriverCompatible, getRequiredLicenses, VEHICLE_TYPE_LABELS, PLATE_FORMATS, validatePlateFormat } from '@/types/vehicleTypes'
 import { Driver } from '@/types/driverTypes'
-import { Input } from '@/components/ui/input'
-import { Button } from '@/components/ui/button'
-import { Truck, FileText, Gauge, User, Info, AlertTriangle, Shield } from 'lucide-react'
+import { Truck, FileText, Gauge, User, Info, AlertTriangle, Shield, ArrowLeft } from 'lucide-react'
 
-export const AddVehicleView = () => {
+interface EditVehicleViewProps {
+  vehicleId: number
+}
+
+export const EditVehicleView = ({ vehicleId }: EditVehicleViewProps) => {
   const router = useRouter()
   const vehiclesService = new VehiclesService()
   const driversService = new DriversService()
 
   const [isLoading, setIsLoading] = useState(false)
+  const [isFetching, setIsFetching] = useState(true)
   const [drivers, setDrivers] = useState<Driver[]>([])
 
-  const [vehicleData, setVehicleData] = useState<CreateVehicleDto>({
+  const [vehicleData, setVehicleData] = useState<UpdateVehicleDto>({
     license_plate: '',
     vehicle_type: 'camion',
     brand: '',
@@ -36,21 +39,46 @@ export const AddVehicleView = () => {
   })
 
   useEffect(() => {
-    loadDrivers()
-  }, [])
+    loadData()
+  }, [vehicleId])
 
-  const loadDrivers = async () => {
-    const data = await driversService.getAllDrivers()
-    setDrivers(data)
+  const loadData = async () => {
+    setIsFetching(true)
+    const [vehicle, driversData] = await Promise.all([
+      vehiclesService.getVehicleById(vehicleId),
+      driversService.getAllDrivers()
+    ])
+
+    if (vehicle) {
+      setVehicleData({
+        license_plate: vehicle.license_plate,
+        vehicle_type: vehicle.vehicle_type,
+        brand: vehicle.brand,
+        model: vehicle.model,
+        year: vehicle.year,
+        weight_capacity: vehicle.weight_capacity,
+        volume_capacity: vehicle.volume_capacity || 0,
+        status: vehicle.status,
+        insurance_expiry: vehicle.insurance_expiry ? vehicle.insurance_expiry.split('T')[0] : '',
+        technical_review_expiry: vehicle.technical_review_expiry ? vehicle.technical_review_expiry.split('T')[0] : '',
+        current_mileage: vehicle.current_mileage || 0,
+        id_driver: vehicle.id_driver || undefined,
+        photo: vehicle.photo || '',
+        notes: vehicle.notes || ''
+      })
+    }
+
+    setDrivers(driversData)
+    setIsFetching(false)
   }
 
-  const requiredLicenses = useMemo(() => getRequiredLicenses(vehicleData.vehicle_type), [vehicleData.vehicle_type])
+  const requiredLicenses = useMemo(() => getRequiredLicenses(vehicleData.vehicle_type || 'camion'), [vehicleData.vehicle_type])
 
-  const plateFormat = useMemo(() => PLATE_FORMATS[vehicleData.vehicle_type] || PLATE_FORMATS.carro, [vehicleData.vehicle_type])
+  const plateFormat = useMemo(() => PLATE_FORMATS[vehicleData.vehicle_type || 'camion'] || PLATE_FORMATS.carro, [vehicleData.vehicle_type])
 
   const plateValidation = useMemo(() => {
     if (!vehicleData.license_plate) return null
-    return validatePlateFormat(vehicleData.license_plate, vehicleData.vehicle_type)
+    return validatePlateFormat(vehicleData.license_plate, vehicleData.vehicle_type || 'camion')
   }, [vehicleData.license_plate, vehicleData.vehicle_type])
 
   const compatibleDrivers = useMemo(() => {
@@ -60,7 +88,7 @@ export const AddVehicleView = () => {
         : typeof driver.license_categories === 'string'
           ? (driver.license_categories as string).split(',').map(c => c.trim())
           : []
-      return isDriverCompatible(categories, vehicleData.vehicle_type)
+      return isDriverCompatible(categories, vehicleData.vehicle_type || 'camion')
     })
   }, [drivers, vehicleData.vehicle_type])
 
@@ -82,14 +110,14 @@ export const AddVehicleView = () => {
 
     try {
       const payload = { ...vehicleData }
-      if (!payload.id_driver) delete payload.id_driver
+      if (!payload.id_driver) payload.id_driver = undefined
 
-      const result = await vehiclesService.createVehicle(payload)
+      const result = await vehiclesService.updateVehicle(vehicleId, payload)
       if (result) {
         router.push('/dashboard/vehiculos')
       }
     } catch (error) {
-      console.error('Error al crear vehiculo:', error)
+      console.error('Error al actualizar vehiculo:', error)
     } finally {
       setIsLoading(false)
     }
@@ -103,13 +131,31 @@ export const AddVehicleView = () => {
     { value: 'camion_articulado', label: 'Camion Articulado', icon: '🚚' },
   ]
 
+  if (isFetching) {
+    return (
+      <div className="p-8 min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-slate-500">Cargando vehiculo...</p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="p-8 min-h-screen">
       <div className="max-w-3xl mx-auto">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-2xl font-bold text-slate-800 mb-1">Agregar Vehiculo</h1>
-          <p className="text-slate-500">Complete la informacion del vehiculo</p>
+          <button
+            onClick={() => router.push('/dashboard/vehiculos')}
+            className="flex items-center gap-1 text-slate-500 hover:text-slate-700 transition-colors mb-4 text-sm"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Volver a vehiculos
+          </button>
+          <h1 className="text-2xl font-bold text-slate-800 mb-1">Editar Vehiculo</h1>
+          <p className="text-slate-500">Modifique la informacion del vehiculo</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -127,7 +173,7 @@ export const AddVehicleView = () => {
                 <input
                   type="text"
                   name="license_plate"
-                  value={vehicleData.license_plate}
+                  value={vehicleData.license_plate || ''}
                   onChange={(e) => {
                     const upper = e.target.value.toUpperCase()
                     setVehicleData(prev => ({ ...prev, license_plate: upper }))
@@ -135,7 +181,7 @@ export const AddVehicleView = () => {
                   placeholder={plateFormat.placeholder}
                   maxLength={plateFormat.maxLength}
                   required
-                  className={`w-full px-4 py-2.5 bg-slate-50 border rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:bg-white outline-none transition-all text-slate-800 placeholder:text-slate-400 uppercase ${
+                  className={`w-full px-4 py-2.5 bg-slate-50 border rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:bg-white outline-none transition-all text-slate-800 uppercase ${
                     plateValidation && !plateValidation.valid ? 'border-red-300' : 'border-slate-200'
                   }`}
                 />
@@ -165,11 +211,10 @@ export const AddVehicleView = () => {
                 <input
                   type="text"
                   name="brand"
-                  value={vehicleData.brand}
+                  value={vehicleData.brand || ''}
                   onChange={handleInputChange}
-                  placeholder="Chevrolet, Kenworth..."
                   required
-                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:bg-white outline-none transition-all text-slate-800 placeholder:text-slate-400"
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:bg-white outline-none transition-all text-slate-800"
                 />
               </div>
 
@@ -178,11 +223,10 @@ export const AddVehicleView = () => {
                 <input
                   type="text"
                   name="model"
-                  value={vehicleData.model}
+                  value={vehicleData.model || ''}
                   onChange={handleInputChange}
-                  placeholder="NHR, T800..."
                   required
-                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:bg-white outline-none transition-all text-slate-800 placeholder:text-slate-400"
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:bg-white outline-none transition-all text-slate-800"
                 />
               </div>
 
@@ -191,7 +235,7 @@ export const AddVehicleView = () => {
                 <input
                   type="number"
                   name="year"
-                  value={vehicleData.year.toString()}
+                  value={vehicleData.year?.toString() || ''}
                   onChange={handleInputChange}
                   required
                   className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:bg-white outline-none transition-all text-slate-800"
@@ -218,7 +262,7 @@ export const AddVehicleView = () => {
               <div className="flex items-center gap-2 mb-1">
                 <Shield className="w-4 h-4 text-blue-600" />
                 <span className="text-sm font-medium text-blue-800">
-                  Licencias requeridas para {VEHICLE_TYPE_LABELS[vehicleData.vehicle_type] || vehicleData.vehicle_type}
+                  Licencias requeridas para {VEHICLE_TYPE_LABELS[vehicleData.vehicle_type || ''] || vehicleData.vehicle_type}
                 </span>
               </div>
               <div className="flex flex-wrap gap-1.5 mt-2">
@@ -243,7 +287,7 @@ export const AddVehicleView = () => {
                 <input
                   type="number"
                   name="weight_capacity"
-                  value={vehicleData.weight_capacity.toString()}
+                  value={vehicleData.weight_capacity?.toString() || '0'}
                   onChange={handleInputChange}
                   required
                   className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:bg-white outline-none transition-all text-slate-800"
@@ -317,7 +361,7 @@ export const AddVehicleView = () => {
               <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2">
                 <AlertTriangle className="w-4 h-4 text-amber-500 mt-0.5 flex-shrink-0" />
                 <p className="text-sm text-amber-700">
-                  No hay conductores disponibles con licencia compatible para un vehiculo tipo <strong>{VEHICLE_TYPE_LABELS[vehicleData.vehicle_type]}</strong>. Se requiere licencia: {requiredLicenses.join(', ')}.
+                  No hay conductores disponibles con licencia compatible para un vehiculo tipo <strong>{VEHICLE_TYPE_LABELS[vehicleData.vehicle_type || '']}</strong>. Se requiere licencia: {requiredLicenses.join(', ')}.
                 </p>
               </div>
             )}
@@ -392,7 +436,7 @@ export const AddVehicleView = () => {
               disabled={isLoading}
               className="flex-1 px-6 py-3 bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-medium rounded-xl hover:from-blue-700 hover:to-cyan-600 transition-all disabled:opacity-50 shadow-sm"
             >
-              {isLoading ? 'Creando Vehiculo...' : 'Crear Vehiculo'}
+              {isLoading ? 'Guardando cambios...' : 'Guardar Cambios'}
             </button>
           </div>
         </form>

@@ -83,8 +83,8 @@ export const Sidebar = ({ isOpen, onToggle }: SidebarProps) => {
       ]
     },
     {
-      name: 'Camiones',
-      href: '/dashboard/camiones',
+      name: 'Vehiculos',
+      href: '/dashboard/vehiculos',
       icon: <Truck className="w-5 h-5" />
     },
     {
