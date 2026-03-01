@@ -4,10 +4,9 @@ import { useState } from 'react'
 import { AxiosUserManagement } from '@/services/axiosRegister'
 import { RegisterUserDto } from '@/types/userTypes'
 import { useRouter } from 'next/navigation'
-import { Button } from '@/components/ui/button'
-import { InputWithIcon } from '@/components/ui/input-with-icon'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { User, Mail, Lock, Eye, EyeOff, Calendar, Phone, CreditCard } from 'lucide-react'
+import { User, Mail, Lock, Eye, EyeOff, Calendar, Phone, CreditCard, Truck } from 'lucide-react'
+import { AuthHeroPanel } from '@/components/auth/AuthHeroPanel'
+import Link from 'next/link'
 
 export const RegisterView = () => {
   const [formData, setFormData] = useState<RegisterUserDto>({
@@ -39,7 +38,6 @@ export const RegisterView = () => {
     try {
       const result = await userApi.registerUser(formData)
       if (result) {
-        // Redirigir al login después del registro exitoso
         router.push('/auth/login')
       }
     } catch (error) {
@@ -50,169 +48,229 @@ export const RegisterView = () => {
   }
 
   return (
-    <div className="min-h-screen flex">
-      {/* Panel izquierdo - Gradiente azul */}
-      <div className="flex-1 bg-gradient-to-br from-blue-500 to-blue-800 relative overflow-hidden">
-        {/* Patrones decorativos */}
-        <div className="absolute bottom-0 left-0 w-64 h-64 opacity-10">
-          <svg viewBox="0 0 200 200" className="w-full h-full">
-            <circle cx="50" cy="50" r="2" fill="white" />
-            <circle cx="100" cy="30" r="1.5" fill="white" />
-            <circle cx="150" cy="60" r="1" fill="white" />
-            <circle cx="80" cy="100" r="2.5" fill="white" />
-            <circle cx="120" cy="120" r="1" fill="white" />
-            <circle cx="40" cy="140" r="1.5" fill="white" />
-            <circle cx="160" cy="140" r="2" fill="white" />
-            <circle cx="70" cy="160" r="1" fill="white" />
-            <circle cx="130" cy="180" r="1.5" fill="white" />
-          </svg>
-        </div>
-        
-        {/* Contenido del panel izquierdo */}
-        <div className="flex flex-col items-center justify-center h-full text-white p-8">
-          <h1 className="text-5xl font-bold mb-4 text-center">
-            Transportadora
-          </h1>
-          <p className="text-xl mb-8 text-center opacity-90">
-            Únete a nuestra plataforma
-          </p>
-          <Button 
-            type="button" 
-            variant="outline"
-            className="bg-white/10 hover:bg-white/20 text-white border-white/20 px-8"
-          >
-            Link
-          </Button>
-        </div>
-      </div>
+    <div className="h-screen w-full overflow-hidden flex flex-col md:flex-row bg-white">
+      {/* Left panel - Hero */}
+      <AuthHeroPanel subtitle="Crea tu cuenta y gestiona tu flota en minutos" />
 
-      {/* Panel derecho - Formulario de registro */}
-      <div className="w-full max-w-md bg-background flex flex-col justify-center p-8 overflow-y-auto">
-        <Card className="border-0 shadow-none">
-          <CardHeader className="space-y-1">
-            <CardTitle className="text-3xl font-bold">Crear Cuenta</CardTitle>
-            <CardDescription>Completa tus datos para registrarte</CardDescription>
-          </CardHeader>
-          <CardContent>
+      {/* Right panel - Register form */}
+      <div className="w-full md:w-[40%] bg-slate-50 flex flex-col justify-center items-center p-6 lg:p-12 relative overflow-y-auto">
+        {/* Mobile brand */}
+        <div className="md:hidden w-full mb-8 flex items-center justify-center gap-2">
+          <div className="w-8 h-8 rounded bg-gradient-to-br from-cyan-400 to-blue-600 flex items-center justify-center">
+            <Truck className="w-4 h-4 text-white" />
+          </div>
+          <h2 className="text-xl font-bold text-slate-900">Transportadora</h2>
+        </div>
+
+        <div className="w-full max-w-[420px]">
+          {/* Glass card form */}
+          <div className="glass-card p-8 rounded-2xl bg-white/80 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white">
+            <div className="mb-6 text-center">
+              <h2 className="text-2xl font-bold text-slate-900 mb-2">Crear Cuenta</h2>
+              <p className="text-slate-500 text-sm">Completa tus datos para registrarte</p>
+            </div>
+
             <form onSubmit={handleSubmit} className="space-y-4">
-              {/* Campo First Name */}
-              <div className="space-y-2">
-                <InputWithIcon
-                  type="text"
-                  name="first_name"
-                  value={formData.first_name}
-                  onChange={handleInputChange}
-                  placeholder="Nombre"
-                  leftIcon={<User className="h-5 w-5" />}
-                  required
-                />
+              {/* Name fields - 2 columns */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label htmlFor="first_name" className="block text-xs font-medium text-slate-700 ml-1">
+                    Nombre
+                  </label>
+                  <div className="relative group">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <User className="w-[16px] h-[16px] text-slate-400 group-focus-within:text-blue-500 transition-colors" />
+                    </div>
+                    <input
+                      id="first_name"
+                      type="text"
+                      name="first_name"
+                      value={formData.first_name}
+                      onChange={handleInputChange}
+                      placeholder="Juan"
+                      required
+                      className="block w-full pl-9 pr-3 py-2.5 border border-slate-200 rounded-xl leading-5 bg-slate-50 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:bg-white transition-all duration-200 text-sm"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <label htmlFor="last_name" className="block text-xs font-medium text-slate-700 ml-1">
+                    Apellido
+                  </label>
+                  <div className="relative group">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <User className="w-[16px] h-[16px] text-slate-400 group-focus-within:text-blue-500 transition-colors" />
+                    </div>
+                    <input
+                      id="last_name"
+                      type="text"
+                      name="last_name"
+                      value={formData.last_name}
+                      onChange={handleInputChange}
+                      placeholder="Pérez"
+                      required
+                      className="block w-full pl-9 pr-3 py-2.5 border border-slate-200 rounded-xl leading-5 bg-slate-50 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:bg-white transition-all duration-200 text-sm"
+                    />
+                  </div>
+                </div>
               </div>
 
-              {/* Campo Last Name */}
-              <div className="space-y-2">
-                <InputWithIcon
-                  type="text"
-                  name="last_name"
-                  value={formData.last_name}
-                  onChange={handleInputChange}
-                  placeholder="Apellido"
-                  leftIcon={<User className="h-5 w-5" />}
-                  required
-                />
+              {/* Identification */}
+              <div className="space-y-1">
+                <label htmlFor="identification" className="block text-xs font-medium text-slate-700 ml-1">
+                  Identificación
+                </label>
+                <div className="relative group">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                    <CreditCard className="w-[18px] h-[18px] text-slate-400 group-focus-within:text-blue-500 transition-colors" />
+                  </div>
+                  <input
+                    id="identification"
+                    type="text"
+                    name="identification"
+                    value={formData.identification}
+                    onChange={handleInputChange}
+                    placeholder="1234567890"
+                    required
+                    className="block w-full pl-11 pr-3 py-2.5 border border-slate-200 rounded-xl leading-5 bg-slate-50 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:bg-white transition-all duration-200 text-sm"
+                  />
+                </div>
               </div>
 
-              {/* Campo Identification */}
-              <div className="space-y-2">
-                <InputWithIcon
-                  type="text"
-                  name="identification"
-                  value={formData.identification}
-                  onChange={handleInputChange}
-                  placeholder="Identificación"
-                  leftIcon={<CreditCard className="h-5 w-5" />}
-                  required
-                />
+              {/* Birthdate */}
+              <div className="space-y-1">
+                <label htmlFor="birthdate" className="block text-xs font-medium text-slate-700 ml-1">
+                  Fecha de Nacimiento
+                </label>
+                <div className="relative group">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                    <Calendar className="w-[18px] h-[18px] text-slate-400 group-focus-within:text-blue-500 transition-colors" />
+                  </div>
+                  <input
+                    id="birthdate"
+                    type="date"
+                    name="birthdate"
+                    value={formData.birthdate}
+                    onChange={handleInputChange}
+                    required
+                    className="block w-full pl-11 pr-3 py-2.5 border border-slate-200 rounded-xl leading-5 bg-slate-50 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:bg-white transition-all duration-200 text-sm"
+                  />
+                </div>
               </div>
 
-              {/* Campo Birthdate */}
-              <div className="space-y-2">
-                <InputWithIcon
-                  type="date"
-                  name="birthdate"
-                  value={formData.birthdate}
-                  onChange={handleInputChange}
-                  placeholder="Fecha de nacimiento"
-                  leftIcon={<Calendar className="h-5 w-5" />}
-                  required
-                />
+              {/* Email */}
+              <div className="space-y-1">
+                <label htmlFor="email" className="block text-xs font-medium text-slate-700 ml-1">
+                  Email Corporativo
+                </label>
+                <div className="relative group">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                    <Mail className="w-[18px] h-[18px] text-slate-400 group-focus-within:text-blue-500 transition-colors" />
+                  </div>
+                  <input
+                    id="email"
+                    type="email"
+                    name="email"
+                    value={formData.email}
+                    onChange={handleInputChange}
+                    placeholder="nombre@empresa.com"
+                    required
+                    autoComplete="email"
+                    className="block w-full pl-11 pr-3 py-2.5 border border-slate-200 rounded-xl leading-5 bg-slate-50 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:bg-white transition-all duration-200 text-sm"
+                  />
+                </div>
               </div>
 
-              {/* Campo Email */}
-              <div className="space-y-2">
-                <InputWithIcon
-                  type="email"
-                  name="email"
-                  value={formData.email}
-                  onChange={handleInputChange}
-                  placeholder="Email"
-                  leftIcon={<Mail className="h-5 w-5" />}
-                  required
-                />
+              {/* Phone */}
+              <div className="space-y-1">
+                <label htmlFor="phone" className="block text-xs font-medium text-slate-700 ml-1">
+                  Teléfono
+                </label>
+                <div className="relative group">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                    <Phone className="w-[18px] h-[18px] text-slate-400 group-focus-within:text-blue-500 transition-colors" />
+                  </div>
+                  <input
+                    id="phone"
+                    type="tel"
+                    name="phone"
+                    value={formData.phone}
+                    onChange={handleInputChange}
+                    placeholder="3001234567"
+                    required
+                    className="block w-full pl-11 pr-3 py-2.5 border border-slate-200 rounded-xl leading-5 bg-slate-50 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:bg-white transition-all duration-200 text-sm"
+                  />
+                </div>
               </div>
 
-              {/* Campo Phone */}
-              <div className="space-y-2">
-                <InputWithIcon
-                  type="tel"
-                  name="phone"
-                  value={formData.phone}
-                  onChange={handleInputChange}
-                  placeholder="Teléfono"
-                  leftIcon={<Phone className="h-5 w-5" />}
-                  required
-                />
+              {/* Password */}
+              <div className="space-y-1">
+                <label htmlFor="password" className="block text-xs font-medium text-slate-700 ml-1">
+                  Contraseña
+                </label>
+                <div className="relative group">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                    <Lock className="w-[18px] h-[18px] text-slate-400 group-focus-within:text-blue-500 transition-colors" />
+                  </div>
+                  <input
+                    id="password"
+                    type={showPassword ? 'text' : 'password'}
+                    name="password"
+                    value={formData.password}
+                    onChange={handleInputChange}
+                    placeholder="••••••••"
+                    required
+                    autoComplete="new-password"
+                    className="block w-full pl-11 pr-11 py-2.5 border border-slate-200 rounded-xl leading-5 bg-slate-50 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:bg-white transition-all duration-200 text-sm"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute inset-y-0 right-0 pr-3.5 flex items-center"
+                  >
+                    {showPassword ? (
+                      <EyeOff className="w-[18px] h-[18px] text-slate-400 hover:text-blue-500 transition-colors" />
+                    ) : (
+                      <Eye className="w-[18px] h-[18px] text-slate-400 hover:text-blue-500 transition-colors" />
+                    )}
+                  </button>
+                </div>
               </div>
 
-              {/* Campo Password */}
-              <div className="space-y-2">
-                <InputWithIcon
-                  type={showPassword ? "text" : "password"}
-                  name="password"
-                  value={formData.password}
-                  onChange={handleInputChange}
-                  placeholder="Contraseña"
-                  leftIcon={<Lock className="h-5 w-5" />}
-                  rightIcon={showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-                  onRightIconClick={() => setShowPassword(!showPassword)}
-                  required
-                />
-              </div>
-
-              {/* Botón Register */}
-              <Button
+              {/* Submit button */}
+              <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full mt-6 bg-blue-600 hover:bg-blue-700 text-white"
-                size="lg"
+                className="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-xl shadow-lg shadow-blue-500/30 text-sm font-semibold text-white bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-700 hover:to-cyan-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transform hover:-translate-y-0.5 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed disabled:transform-none mt-2"
               >
-                {isLoading ? 'Creando cuenta...' : 'Registrarse'}
-              </Button>
+                {isLoading ? (
+                  <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                  </svg>
+                ) : (
+                  'Registrarse'
+                )}
+              </button>
             </form>
+          </div>
 
-            {/* Link para ir al login */}
-            <div className="mt-6 text-center">
-              <div className="text-sm text-muted-foreground">
-                ¿Ya tienes cuenta?{' '}
-                <a 
-                  href="/auth/login" 
-                  className="text-primary hover:text-primary/80 font-medium transition-colors"
-                >
-                  Inicia sesión
-                </a>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+          {/* Login link */}
+          <p className="mt-6 text-center text-sm text-slate-600">
+            ¿Ya tienes cuenta?{' '}
+            <Link
+              href="/auth/login"
+              className="font-bold text-cyan-600 hover:text-cyan-700 hover:underline transition-colors decoration-2 underline-offset-4"
+            >
+              Inicia sesión
+            </Link>
+          </p>
+
+          {/* Copyright */}
+          <div className="mt-6 text-center">
+            <p className="text-[10px] text-slate-400">© 2026 Transportadora SaaS. All rights reserved.</p>
+          </div>
+        </div>
       </div>
     </div>
   )
