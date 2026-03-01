@@ -1,19 +1,19 @@
+import { Truck } from 'lucide-react'
+
 interface SidebarLogoProps {
   companyName?: string
 }
 
-export const SidebarLogo = ({ companyName = 'Transportadora Algrt' }: SidebarLogoProps) => {
+export const SidebarLogo = ({ companyName = 'Transportadora' }: SidebarLogoProps) => {
   return (
-    <div className="p-6 flex flex-col items-center border-b border-blue-500">
-      <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mb-3">
-        <div className="w-12 h-12 bg-gradient-to-br from-pink-400 to-blue-500 rounded-full flex items-center justify-center">
-          <span className="text-white font-bold text-xl">M</span>
-        </div>
+    <div className="px-6 py-5 flex items-center gap-3 border-b border-white/10">
+      <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-cyan-400 to-blue-600 flex items-center justify-center shadow-lg shadow-cyan-500/20">
+        <Truck className="w-5 h-5 text-white" />
       </div>
-      <h1 className="text-sm font-semibold text-center">
-        {companyName}
-      </h1>
+      <div className="flex flex-col">
+        <span className="text-sm font-bold text-white tracking-wide">{companyName}</span>
+        <span className="text-[10px] text-cyan-300/60 font-mono">LOGISTICS PLATFORM</span>
+      </div>
     </div>
   )
 }
-

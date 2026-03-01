@@ -21,7 +21,7 @@ export const SidebarSubmenu = ({ items, currentPath, hasPermission }: SidebarSub
   if (filteredItems.length === 0) return null
 
   return (
-    <div className="bg-blue-900 bg-opacity-50">
+    <div className="ml-4 mr-2 mt-1 mb-1 pl-4 border-l border-white/10 space-y-0.5">
       {filteredItems.map((item) => (
         <SidebarSubmenuItem
           key={item.name}
@@ -33,4 +33,3 @@ export const SidebarSubmenu = ({ items, currentPath, hasPermission }: SidebarSub
     </div>
   )
 }
-

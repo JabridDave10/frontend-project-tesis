@@ -2,7 +2,17 @@
 
 import { useState } from 'react'
 import { usePathname } from 'next/navigation'
-import { LandPlot, ShoppingCart, Users } from 'lucide-react'
+import {
+  LayoutDashboard,
+  LandPlot,
+  Map,
+  ShoppingCart,
+  Users,
+  UserCog,
+  Truck,
+  Package,
+  Settings
+} from 'lucide-react'
 import { usePermissions } from '@/hooks/usePermissions'
 import { SidebarLogo } from './SidebarLogo'
 import { SidebarMenuItem } from './SidebarMenuItem'
@@ -38,77 +48,49 @@ export const Sidebar = ({ isOpen, onToggle }: SidebarProps) => {
     {
       name: 'Dashboard',
       href: '/dashboard',
-      //permission: 'Dashboard',
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-        </svg>
-      )
+      icon: <LayoutDashboard className="w-5 h-5" />
     },
     {
       name: 'Planificar Rutas',
       href: '/dashboard/planroutes',
-      //permission: 'planroutes',
       icon: <LandPlot className="w-5 h-5" />
     },
     {
       name: 'Rutas',
       href: '/dashboard/rutas',
-      //permission: 'Rutas',
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
-        </svg>
-      )
+      icon: <Map className="w-5 h-5" />
     },
     {
       name: 'Ventas',
       href: '/dashboard/ventas',
-      //permission: 'Sales',
       icon: <ShoppingCart className="w-5 h-5" />
     },
     {
       name: 'Clientes',
       href: '/dashboard/clientes',
-      //permission: 'planroutes',
       icon: <Users className="w-5 h-5" />
     },
     {
       name: 'Empleados',
       href: '#',
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-        </svg>
-      ),
-      //permission: 'Empleados',
+      icon: <UserCog className="w-5 h-5" />,
       submenu: [
-        { name: 'Administrativos', href: '/dashboard/empleados/administrativos', /* permission: 'Administrativos' */ },
-        { name: 'Conductores', href: '/dashboard/empleados/conductores', /* permission: 'Conductores' */ },
-        { name: 'Agregar', href: '/dashboard/empleados/agregar', /* //permission: 'Agregar'  */},
-        { name: 'Editar', href: '/dashboard/empleados/editar', /* //permission: 'Editar' */ },
-        { name: 'Eliminar', href: '/dashboard/empleados/eliminar', /* //permission: 'Eliminar'  */}
+        { name: 'Administrativos', href: '/dashboard/empleados/administrativos' },
+        { name: 'Conductores', href: '/dashboard/empleados/conductores' },
+        { name: 'Agregar', href: '/dashboard/empleados/agregar' },
+        { name: 'Editar', href: '/dashboard/empleados/editar' },
+        { name: 'Eliminar', href: '/dashboard/empleados/eliminar' }
       ]
     },
     {
       name: 'Camiones',
       href: '/dashboard/camiones',
-      //permission: 'Camiones',
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
-        </svg>
-      )
+      icon: <Truck className="w-5 h-5" />
     },
     {
       name: 'Productos',
       href: '#',
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-        </svg>
-      ),
-      //permission: 'Productos',
+      icon: <Package className="w-5 h-5" />,
       submenu: [
         { name: 'Ver Productos', href: '/dashboard/productos' },
         { name: 'Agregar Producto', href: '/dashboard/productos/agregar' },
@@ -119,48 +101,57 @@ export const Sidebar = ({ isOpen, onToggle }: SidebarProps) => {
     {
       name: 'Configuraciones',
       href: '/dashboard/configuraciones',
-      //permission: 'Configuraciones',
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-        </svg>
-      )
+      icon: <Settings className="w-5 h-5" />
     }
   ]
 
   const filteredMenuItems = menuItems.filter((item) => {
-    // Si no tiene permiso especificado, mostrar por defecto
     if (!item.permission) return true
-    // Verificar si el usuario tiene el permiso
     return hasPermission(item.permission)
   })
 
   return (
-    <aside className="w-64 bg-gradient-to-b from-blue-600 to-blue-800 text-white min-h-screen flex flex-col">
-      <SidebarLogo />
+    <aside
+      className={`${
+        isOpen ? 'w-64' : 'w-0 overflow-hidden'
+      } bg-gradient-to-b from-[#0A1628] to-[#001F3F] text-white min-h-screen flex flex-col transition-all duration-300 relative`}
+    >
+      {/* Subtle grid pattern */}
+      <div className="absolute inset-0 bg-grid-pattern opacity-20 pointer-events-none" />
 
-      <nav className="flex-1 py-4">
-        {loading ? (
-          <SidebarLoading />
-        ) : (
-          filteredMenuItems.map((item) => (
-            <SidebarMenuItem
-              key={item.name}
-              name={item.name}
-              href={item.href}
-              icon={item.icon}
-              permission={item.permission}
-              submenu={item.submenu}
-              isActive={pathname === item.href}
-              isOpen={openMenus.includes(item.name)}
-              onToggle={() => toggleMenu(item.name)}
-              currentPath={pathname}
-              hasPermission={hasPermission}
-            />
-          ))
-        )}
-      </nav>
+      <div className="relative z-10 flex flex-col h-full">
+        <SidebarLogo />
+
+        <nav className="flex-1 py-4 space-y-1 overflow-y-auto">
+          {loading ? (
+            <SidebarLoading />
+          ) : (
+            filteredMenuItems.map((item) => (
+              <SidebarMenuItem
+                key={item.name}
+                name={item.name}
+                href={item.href}
+                icon={item.icon}
+                permission={item.permission}
+                submenu={item.submenu}
+                isActive={pathname === item.href}
+                isOpen={openMenus.includes(item.name)}
+                onToggle={() => toggleMenu(item.name)}
+                currentPath={pathname}
+                hasPermission={hasPermission}
+              />
+            ))
+          )}
+        </nav>
+
+        {/* Bottom system status */}
+        <div className="px-6 py-4 border-t border-white/10">
+          <div className="flex items-center gap-2 text-cyan-300/60 text-xs font-mono">
+            <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+            SYSTEM ONLINE
+          </div>
+        </div>
+      </div>
     </aside>
   )
 }
