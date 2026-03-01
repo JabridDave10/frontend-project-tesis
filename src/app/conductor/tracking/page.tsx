@@ -30,10 +30,47 @@ interface ActiveRoute {
   id_vehicle?: number
 }
 
+interface AssignedVehicle {
+  id_vehicle: number
+  license_plate: string
+  vehicle_type: string
+  brand: string
+  model: string
+  year: number
+  weight_capacity: number
+  volume_capacity?: number
+  status: string
+  current_mileage: number
+  photo?: string
+}
+
+const VEHICLE_EMOJIS: Record<string, string> = {
+  moto: '🏍️',
+  carro: '🚗',
+  furgoneta: '🚐',
+  camion: '🚛',
+  camion_articulado: '🚚',
+}
+
+const VEHICLE_LABELS: Record<string, string> = {
+  moto: 'Moto',
+  carro: 'Carro',
+  furgoneta: 'Furgoneta',
+  camion: 'Camion',
+  camion_articulado: 'Camion Articulado',
+}
+
+const VEHICLE_STATUS_LABELS: Record<string, { label: string; color: string }> = {
+  activo: { label: 'Activo', color: 'text-emerald-300 bg-emerald-400/20' },
+  en_mantenimiento: { label: 'En Mantenimiento', color: 'text-amber-300 bg-amber-400/20' },
+  inactivo: { label: 'Inactivo', color: 'text-slate-300 bg-slate-400/20' },
+}
+
 export default function ConductorTrackingPage() {
   const router = useRouter()
   const [driver, setDriver] = useState<DriverInfo | null>(null)
   const [activeRoute, setActiveRoute] = useState<ActiveRoute | null>(null)
+  const [assignedVehicle, setAssignedVehicle] = useState<AssignedVehicle | null>(null)
   const [driverError, setDriverError] = useState<string | null>(null)
   const [isTracking, setIsTracking] = useState(false)
   const [wsConnected, setWsConnected] = useState(false)
@@ -64,6 +101,8 @@ export default function ConductorTrackingPage() {
         try {
           setDriver(JSON.parse(driverStr))
           if (routeStr) setActiveRoute(JSON.parse(routeStr))
+          const vehicleStr = localStorage.getItem('assignedVehicle')
+          if (vehicleStr) setAssignedVehicle(JSON.parse(vehicleStr))
           return
         } catch { /* fall through to fetch */ }
       }
@@ -85,6 +124,10 @@ export default function ConductorTrackingPage() {
             if (res.data.activeRoute) {
               setActiveRoute(res.data.activeRoute)
               localStorage.setItem('activeRoute', JSON.stringify(res.data.activeRoute))
+            }
+            if (res.data.assignedVehicle) {
+              setAssignedVehicle(res.data.assignedVehicle)
+              localStorage.setItem('assignedVehicle', JSON.stringify(res.data.assignedVehicle))
             }
             return
           }
@@ -113,6 +156,28 @@ export default function ConductorTrackingPage() {
 
     loadDriverInfo()
   }, [router])
+
+  // Fetch assigned vehicle when driver is loaded
+  useEffect(() => {
+    if (!driver) return
+
+    const fetchVehicle = async () => {
+      try {
+        const { api } = await import('@/services/api')
+        const res = await api.get(`/vehicles/by-driver/${driver.id_driver}`)
+        // Backend returns array directly from raw SQL query
+        const vehicles = Array.isArray(res.data) ? res.data : (res.data?.data || [])
+        if (vehicles.length > 0) {
+          setAssignedVehicle(vehicles[0])
+          localStorage.setItem('assignedVehicle', JSON.stringify(vehicles[0]))
+        }
+      } catch (err) {
+        console.warn('No se pudo obtener vehiculo asignado:', err)
+      }
+    }
+
+    fetchVehicle()
+  }, [driver])
 
   // Connect WebSocket when tracking starts
   useEffect(() => {
@@ -214,6 +279,7 @@ export default function ConductorTrackingPage() {
     localStorage.removeItem('user')
     localStorage.removeItem('driver')
     localStorage.removeItem('activeRoute')
+    localStorage.removeItem('assignedVehicle')
     router.push('/auth/login')
   }, [handleStopTracking, router])
 
@@ -273,6 +339,42 @@ export default function ConductorTrackingPage() {
           <LogOut className="w-5 h-5" />
         </button>
       </div>
+
+      {/* Assigned Vehicle Card */}
+      {assignedVehicle && (
+        <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-5 border border-white/10 mb-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Truck className="w-4 h-4 text-cyan-400" />
+            <span className="text-xs font-medium text-cyan-300">Vehiculo Asignado</span>
+            <span className={`text-xs px-2 py-0.5 rounded-full ml-auto ${VEHICLE_STATUS_LABELS[assignedVehicle.status]?.color || 'text-slate-300 bg-slate-400/20'}`}>
+              {VEHICLE_STATUS_LABELS[assignedVehicle.status]?.label || assignedVehicle.status}
+            </span>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 bg-white/10 rounded-xl flex items-center justify-center text-2xl">
+              {VEHICLE_EMOJIS[assignedVehicle.vehicle_type] || '🚗'}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-white font-semibold text-sm">
+                {assignedVehicle.brand} {assignedVehicle.model} ({assignedVehicle.year})
+              </p>
+              <p className="text-blue-300/70 text-xs">
+                {VEHICLE_LABELS[assignedVehicle.vehicle_type] || assignedVehicle.vehicle_type} · {assignedVehicle.license_plate}
+              </p>
+            </div>
+          </div>
+          <div className="mt-3 pt-3 border-t border-white/10 grid grid-cols-2 gap-3">
+            <div>
+              <p className="text-[10px] text-blue-300/50">Capacidad</p>
+              <p className="text-xs text-white">{assignedVehicle.weight_capacity} kg</p>
+            </div>
+            <div>
+              <p className="text-[10px] text-blue-300/50">Kilometraje</p>
+              <p className="text-xs text-white">{assignedVehicle.current_mileage?.toLocaleString() || 0} km</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Active Route Card */}
       {activeRoute && (
