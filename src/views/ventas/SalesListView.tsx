@@ -3,7 +3,9 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { AxiosSales } from '@/services/axiosSales'
+import { AxiosClients } from '@/services/axiosClients'
 import { Sale } from '@/types/saleTypes'
+import { Client } from '@/types/clientTypes'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -12,7 +14,9 @@ import { ShoppingCart, Plus, Search, User, Calendar, DollarSign, FileText } from
 export function SalesListView() {
   const router = useRouter()
   const salesService = new AxiosSales()
+  const clientsService = new AxiosClients()
   const [sales, setSales] = useState<Sale[]>([])
+  const [clients, setClients] = useState<Client[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
 
@@ -23,8 +27,33 @@ export function SalesListView() {
   const loadSales = async () => {
     setIsLoading(true)
     try {
-      const data = await salesService.getAllSales()
-      setSales(data)
+      const [salesData, clientsData] = await Promise.all([
+        salesService.getAllSales(),
+        clientsService.getAllClients()
+      ])
+      
+      // Enriquecer ventas con información del cliente si no viene del backend
+      const enrichedSales = salesData.map(sale => {
+        // Si ya tiene client_name, usarlo (viene del backend)
+        if (sale.client_name) {
+          return sale
+        }
+        
+        // Si no, buscar el cliente y agregar la información
+        const client = clientsData.find(c => c.id_client === sale.id_client)
+        if (client) {
+          return {
+            ...sale,
+            client_name: client.name,
+            client_identification: client.identification
+          }
+        }
+        
+        return sale
+      })
+      
+      setSales(enrichedSales)
+      setClients(clientsData)
     } catch (error) {
       console.error('Error al cargar ventas:', error)
     } finally {

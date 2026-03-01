@@ -22,13 +22,20 @@ interface CompanyRegistrationModalProps {
   required?: boolean // Si es true, no se puede cerrar hasta que se registre la empresa
 }
 
+// Tipo para el formulario (sin id_user, que se obtiene del localStorage)
+interface CompanyFormData {
+  name: string
+  nit?: string
+  logo?: string
+}
+
 export const CompanyRegistrationModal = ({
   open,
   onClose,
   onSuccess,
   required = false
 }: CompanyRegistrationModalProps) => {
-  const [formData, setFormData] = useState<CreateCompanyDto>({
+  const [formData, setFormData] = useState<CompanyFormData>({
     name: '',
     nit: '',
     logo: ''
@@ -54,11 +61,38 @@ export const CompanyRegistrationModal = ({
     setIsLoading(true)
 
     try {
+      // Obtener el id del usuario desde localStorage (requerido por el backend)
+      let userId: number | null = null
+      if (typeof window !== 'undefined') {
+        const userStr = localStorage.getItem('user')
+        if (userStr) {
+          try {
+            const user = JSON.parse(userStr)
+            userId = user.id
+            if (!userId) {
+              console.error('El usuario no tiene un id válido')
+            }
+          } catch (error) {
+            console.error('Error al obtener usuario del localStorage:', error)
+          }
+        }
+      }
+
+      if (!userId) {
+        console.error('No se pudo obtener el id del usuario. Por favor, inicia sesión nuevamente.')
+        setIsLoading(false)
+        return
+      }
+
+      // Construir el objeto con id_user requerido por el backend
       const dataToSend: CreateCompanyDto = {
+        id_user: userId,
         name: formData.name.trim(),
         ...(formData.nit?.trim() && { nit: formData.nit.trim() }),
         ...(formData.logo?.trim() && { logo: formData.logo.trim() })
       }
+
+      console.log('Enviando datos al backend:', dataToSend)
 
       const result = await companyService.createCompany(dataToSend)
       
@@ -77,16 +111,19 @@ export const CompanyRegistrationModal = ({
           }
         }
         
-        onSuccess()
         // Resetear formulario
         setFormData({
           name: '',
           nit: '',
           logo: ''
-        })
-        if (onClose) {
-          onClose()
-        }
+        } as CompanyFormData)
+        
+        // Llamar a onSuccess primero
+        onSuccess()
+        
+        // Cerrar el modal siempre después de registrar exitosamente
+        // Forzar el cierre incluso si required es true
+        forceClose()
       }
     } catch (error) {
       console.error('Error al crear empresa:', error)
@@ -95,19 +132,34 @@ export const CompanyRegistrationModal = ({
     }
   }
 
-  const handleClose = (open: boolean) => {
-    // Si es requerido, no permitir cerrar el modal
-    if (required && !open) {
-      return
+  const [shouldClose, setShouldClose] = useState(false)
+
+  const handleClose = (newOpen: boolean) => {
+    // Si se está intentando cerrar
+    if (!newOpen) {
+      // Si es requerido y no se ha marcado para cerrar, no permitir
+      if (required && !shouldClose) {
+        return
+      }
+      // Si se puede cerrar, cerrar el modal
+      if (onClose) {
+        onClose()
+        setShouldClose(false) // Resetear el flag
+      }
     }
+  }
+
+  // Función para forzar el cierre (usada después de registro exitoso)
+  const forceClose = () => {
+    setShouldClose(true) // Marcar que se puede cerrar
     if (onClose) {
       onClose()
     }
   }
 
   return (
-    <Dialog open={open} onOpenChange={required ? undefined : handleClose}>
-      <DialogContent className="sm:max-w-[500px]" onInteractOutside={(e) => required && e.preventDefault()} onEscapeKeyDown={(e) => required && e.preventDefault()}>
+    <Dialog open={open} onOpenChange={handleClose}>
+      <DialogContent className="sm:max-w-[500px] z-[9999]" onInteractOutside={(e) => required && e.preventDefault()} onEscapeKeyDown={(e) => required && e.preventDefault()}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Building2 className="h-5 w-5" />

@@ -86,14 +86,6 @@ export default function OptimizedRouteMap({
   // Centro por defecto (Bogotá)
   const defaultCenter: [number, number] = [4.711, -74.072];
 
-  if (routes.length === 0) {
-    return (
-      <div className="w-full h-[600px] rounded-2xl overflow-hidden shadow-lg flex items-center justify-center bg-gray-100">
-        <p className="text-gray-500">No hay rutas para mostrar</p>
-      </div>
-    );
-  }
-
   return (
     <div className="w-full h-[600px] rounded-2xl overflow-hidden shadow-lg relative">
       <MapContainer
@@ -107,7 +99,14 @@ export default function OptimizedRouteMap({
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         />
 
-        <MapBounds routes={routes} />
+        {routes.length > 0 && <MapBounds routes={routes} />}
+
+        {/* Mensaje cuando no hay rutas */}
+        {routes.length === 0 && (
+          <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-[1000] bg-white rounded-lg shadow-lg p-4">
+            <p className="text-gray-600 font-medium">No hay rutas para mostrar en el mapa</p>
+          </div>
+        )}
 
         {/* Renderizar cada ruta */}
         {routes.map((route, routeIndex) => {
@@ -241,10 +240,11 @@ export default function OptimizedRouteMap({
       </MapContainer>
 
       {/* Panel de información de rutas */}
-      <div className="absolute bottom-4 left-4 z-[1000] bg-white rounded-lg shadow-lg p-4 max-w-sm max-h-64 overflow-y-auto">
-        <h3 className="font-semibold text-gray-800 mb-2">Rutas Optimizadas</h3>
-        <div className="space-y-2">
-          {routes.map((route, index) => {
+      {routes.length > 0 && (
+        <div className="absolute bottom-4 left-4 z-[1000] bg-white rounded-lg shadow-lg p-4 max-w-sm max-h-64 overflow-y-auto">
+          <h3 className="font-semibold text-gray-800 mb-2">Rutas Optimizadas</h3>
+          <div className="space-y-2">
+            {routes.map((route, index) => {
             const routeColor = routeColors[index % routeColors.length];
             return (
               <div
@@ -267,8 +267,9 @@ export default function OptimizedRouteMap({
               </div>
             );
           })}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

@@ -1,5 +1,6 @@
 // Company types
 export interface CreateCompanyDto {
+  id_user: number
   name: string
   nit?: string
   logo?: string

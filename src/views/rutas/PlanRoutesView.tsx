@@ -7,17 +7,21 @@ import { DriversService } from '@/services/driversService'
 import { ProductsService } from '@/services/productsService'
 import { CargoService } from '@/services/cargoService'
 import { RoutesService } from '@/services/routesService'
+import { AxiosClients } from '@/services/axiosClients'
+import { AxiosSales } from '@/services/axiosSales'
 import { OptimizedRoute } from '@/types/cargoTypes'
 import { Vehicle } from '@/types/vehicleTypes'
 import { Driver } from '@/types/driverTypes'
 import { Product } from '@/types/productTypes'
+import { Client } from '@/types/clientTypes'
+import { Sale } from '@/types/saleTypes'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { AddressAutocomplete } from '@/components/ui/address-autocomplete'
 import dynamic from 'next/dynamic'
-import { MapPin, Package, Truck, Route, Plus, X, Loader2 } from 'lucide-react'
+import { MapPin, Package, Truck, Route, Plus, X, Loader2, ShoppingCart, CheckCircle2 } from 'lucide-react'
 import { toast } from 'react-toastify'
 
 // Importar el mapa de forma dinámica
@@ -30,22 +34,15 @@ const OptimizedRouteMap = dynamic(() => import('@/components/map/OptimizedRouteM
   )
 })
 
-interface Destination {
-  id: string
-  address: string
-  latitude?: number
-  longitude?: number
-  recipient_name?: string
-  recipient_phone?: string
-}
-
-interface SelectedProduct {
-  product: Product
-  quantity: number
+interface SaleWithClient extends Sale {
+  client?: Client
+  destination_address?: string
+  destination_latitude?: number
+  destination_longitude?: number
 }
 
 export const PlanRoutesView = () => {
-  const [step, setStep] = useState<'destinations' | 'products' | 'vehicles' | 'optimize' | 'results'>('destinations')
+  const [step, setStep] = useState<'sales' | 'vehicles' | 'optimize' | 'results'>('sales')
   const [isLoading, setIsLoading] = useState(false)
   const [isOptimizing, setIsOptimizing] = useState(false)
 
@@ -53,14 +50,15 @@ export const PlanRoutesView = () => {
   const [originAddress, setOriginAddress] = useState('')
   const [originLat, setOriginLat] = useState<number>(4.711) // Bogotá por defecto
   const [originLng, setOriginLng] = useState<number>(-74.072)
-  const [destinations, setDestinations] = useState<Destination[]>([])
-  const [selectedProducts, setSelectedProducts] = useState<SelectedProduct[]>([])
+  const [selectedSales, setSelectedSales] = useState<number[]>([])
   const [selectedVehicles, setSelectedVehicles] = useState<number[]>([])
 
   // Datos cargados
-  const [products, setProducts] = useState<Product[]>([])
+  const [sales, setSales] = useState<SaleWithClient[]>([])
   const [vehicles, setVehicles] = useState<Vehicle[]>([])
   const [drivers, setDrivers] = useState<Driver[]>([])
+  const [clients, setClients] = useState<Client[]>([])
+  const [products, setProducts] = useState<Product[]>([])
 
   // Resultados
   const [optimizedRoutes, setOptimizedRoutes] = useState<OptimizedRoute[]>([])
@@ -71,6 +69,8 @@ export const PlanRoutesView = () => {
   const productsService = new ProductsService()
   const cargoService = new CargoService()
   const routesService = new RoutesService()
+  const clientsService = new AxiosClients()
+  const salesService = new AxiosSales()
 
   useEffect(() => {
     loadInitialData()
@@ -79,14 +79,59 @@ export const PlanRoutesView = () => {
   const loadInitialData = async () => {
     setIsLoading(true)
     try {
-      const [productsData, vehiclesData, driversData] = await Promise.all([
-        productsService.getAllProducts(),
+      const [salesData, vehiclesData, driversData, clientsData, productsData] = await Promise.all([
+        salesService.getAllSales(),
         vehiclesService.getAvailableVehicles(),
-        driversService.getAvailableDrivers()
+        driversService.getAvailableDrivers(),
+        clientsService.getAllClients(),
+        productsService.getAllProducts()
       ])
+      
+      // Filtrar ventas pendientes (sin ruta asignada o con status pendiente)
+      const pendingSales = salesData.filter(sale => !sale.id_route && (sale.status === 'pendiente' || !sale.status))
+      
+      // Enriquecer ventas con información del cliente
+      const salesWithClients: SaleWithClient[] = pendingSales.map(sale => {
+        const client = clientsData.find(c => c.id_client === sale.id_client)
+        return {
+          ...sale,
+          client,
+          destination_address: client?.address,
+          destination_latitude: undefined, // Se obtendrá con geocodificación
+          destination_longitude: undefined
+        }
+      })
+      
+      setSales(salesWithClients)
       setProducts(productsData)
-      setVehicles(vehiclesData)
+      
+      // Si no hay vehículos disponibles, intentar obtener todos los vehículos
+      let finalVehicles = vehiclesData
+      if (vehiclesData.length === 0) {
+        console.warn('No hay vehículos disponibles, obteniendo todos los vehículos')
+        finalVehicles = await vehiclesService.getAllVehicles()
+        if (finalVehicles.length === 0) {
+          toast.warning('No hay vehículos registrados. Por favor, agrega vehículos primero.')
+        } else {
+          console.log(`Se encontraron ${finalVehicles.length} vehículos (no todos están disponibles)`)
+        }
+      }
+      setVehicles(finalVehicles)
+      
       setDrivers(driversData)
+      setClients(clientsData)
+      
+      console.log('Datos cargados:', {
+        sales: salesWithClients.length,
+        vehicles: finalVehicles.length,
+        drivers: driversData.length,
+        clients: clientsData.length,
+        products: productsData.length
+      })
+      
+      if (salesWithClients.length === 0) {
+        toast.info('No hay ventas pendientes para planificar rutas')
+      }
     } catch (error) {
       console.error('Error al cargar datos:', error)
       toast.error('Error al cargar los datos iniciales')
@@ -95,51 +140,12 @@ export const PlanRoutesView = () => {
     }
   }
 
-  const handleAddDestination = () => {
-    setDestinations([
-      ...destinations,
-      {
-        id: Date.now().toString(),
-        address: '',
-        recipient_name: '',
-        recipient_phone: ''
-      }
-    ])
-  }
-
-  const handleRemoveDestination = (id: string) => {
-    setDestinations(destinations.filter(d => d.id !== id))
-  }
-
-  const handleAddProduct = (product: Product) => {
-    const existing = selectedProducts.find(sp => sp.product.id_product === product.id_product)
-    if (existing) {
-      setSelectedProducts(
-        selectedProducts.map(sp =>
-          sp.product.id_product === product.id_product
-            ? { ...sp, quantity: sp.quantity + 1 }
-            : sp
-        )
-      )
+  const handleSaleToggle = (saleId: number) => {
+    if (selectedSales.includes(saleId)) {
+      setSelectedSales(selectedSales.filter(id => id !== saleId))
     } else {
-      setSelectedProducts([...selectedProducts, { product, quantity: 1 }])
+      setSelectedSales([...selectedSales, saleId])
     }
-  }
-
-  const handleRemoveProduct = (productId: number) => {
-    setSelectedProducts(selectedProducts.filter(sp => sp.product.id_product !== productId))
-  }
-
-  const handleProductQuantityChange = (productId: number, quantity: number) => {
-    if (quantity <= 0) {
-      handleRemoveProduct(productId)
-      return
-    }
-    setSelectedProducts(
-      selectedProducts.map(sp =>
-        sp.product.id_product === productId ? { ...sp, quantity } : sp
-      )
-    )
   }
 
   const handleVehicleToggle = (vehicleId: number) => {
@@ -150,28 +156,74 @@ export const PlanRoutesView = () => {
     }
   }
 
+  // Calcular peso total de las ventas seleccionadas
   const calculateTotalWeight = (): number => {
-    return selectedProducts.reduce((total, sp) => {
-      const weightPerUnit = sp.product.weight_per_unit || 0
-      return total + weightPerUnit * sp.quantity
-    }, 0)
+    const selectedSalesData = sales.filter(s => selectedSales.includes(s.id_sale))
+    let totalWeight = 0
+    
+    selectedSalesData.forEach(sale => {
+      if (sale.details) {
+        sale.details.forEach(detail => {
+          const product = products.find(p => p.id_product === detail.id_product)
+          if (product && product.weight_per_unit) {
+            totalWeight += product.weight_per_unit * detail.quantity
+          }
+        })
+      }
+    })
+    
+    return totalWeight
   }
 
+  // Calcular volumen total de las ventas seleccionadas
   const calculateTotalVolume = (): number => {
-    return selectedProducts.reduce((total, sp) => {
-      const volumePerUnit = sp.product.volume_per_unit || 0
-      return total + volumePerUnit * sp.quantity
-    }, 0)
+    const selectedSalesData = sales.filter(s => selectedSales.includes(s.id_sale))
+    let totalVolume = 0
+    
+    selectedSalesData.forEach(sale => {
+      if (sale.details) {
+        sale.details.forEach(detail => {
+          const product = products.find(p => p.id_product === detail.id_product)
+          if (product && product.volume_per_unit) {
+            totalVolume += product.volume_per_unit * detail.quantity
+          }
+        })
+      }
+    })
+    
+    return totalVolume
+  }
+
+  // Función auxiliar para geocodificar una dirección
+  const geocodeAddress = async (address: string): Promise<{ lat: number; lng: number } | null> => {
+    try {
+      const searchQuery = `${address}, Bogotá, Colombia`
+      const viewbox = '-74.3,4.4,-73.9,4.9'
+      const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=1&addressdetails=1&viewbox=${viewbox}&bounded=0&countrycodes=co`
+      
+      const response = await fetch(url, {
+        headers: {
+          'User-Agent': 'RoutePlanningApp/1.0'
+        }
+      })
+      const data = await response.json()
+      
+      if (data && data.length > 0) {
+        return {
+          lat: parseFloat(data[0].lat),
+          lng: parseFloat(data[0].lon)
+        }
+      }
+      return null
+    } catch (error) {
+      console.error('Error al geocodificar dirección:', error)
+      return null
+    }
   }
 
   const handleOptimize = async () => {
-    if (destinations.length === 0) {
-      toast.error('Debes agregar al menos una ubicación de destino')
-      return
-    }
-
-    if (selectedProducts.length === 0) {
-      toast.error('Debes seleccionar al menos un producto')
+    if (selectedSales.length === 0) {
+      toast.error('Debes seleccionar al menos una venta')
       return
     }
 
@@ -195,37 +247,84 @@ export const PlanRoutesView = () => {
       if (!originLat || !originLng) {
         toast.error('La dirección de origen debe tener coordenadas válidas. Por favor, selecciona una dirección de la lista de sugerencias.')
         setIsOptimizing(false)
+        setStep('vehicles')
         return
       }
 
-      // Crear cargas para cada destino
+      // Obtener las ventas seleccionadas
+      const selectedSalesData = sales.filter(s => selectedSales.includes(s.id_sale))
+      
+      // Geocodificar direcciones de las ventas seleccionadas
+      toast.info('Obteniendo coordenadas de las direcciones...')
+      const salesWithCoords = await Promise.all(
+        selectedSalesData.map(async (sale) => {
+          if (!sale.destination_address) {
+            toast.warning(`La venta ${sale.sale_number || sale.id_sale} no tiene dirección de cliente`)
+            return null
+          }
+          
+          // Si ya tiene coordenadas, usarlas
+          if (sale.destination_latitude && sale.destination_longitude) {
+            return sale
+          }
+          
+          // Si no, geocodificar
+          const coords = await geocodeAddress(sale.destination_address)
+          if (coords) {
+            return {
+              ...sale,
+              destination_latitude: coords.lat,
+              destination_longitude: coords.lng
+            }
+          }
+          
+          toast.warning(`No se pudieron obtener coordenadas para la dirección: ${sale.destination_address}`)
+          return null
+        })
+      )
+
+      // Filtrar ventas con coordenadas válidas
+      const validSales = salesWithCoords.filter((s): s is SaleWithClient => s !== null && s.destination_latitude !== undefined && s.destination_longitude !== undefined)
+
+      if (validSales.length === 0) {
+        toast.error('No se pudieron obtener coordenadas válidas para ninguna venta. Verifica que los clientes tengan direcciones válidas.')
+        setIsOptimizing(false)
+        setStep('sales')
+        return
+      }
+
+      // Crear cargas para cada venta
       const now = new Date().toISOString()
-      const cargos = destinations.map((dest, index) => {
-        // Distribuir productos entre destinos (simplificado - en producción sería más complejo)
-        const productsForDestination = selectedProducts.map(sp => ({
-          product: sp.product,
-          quantity: Math.ceil(sp.quantity / destinations.length)
-        }))
+      const cargos = validSales.map((sale, index) => {
+        // Calcular peso y volumen de los productos de la venta
+        let totalWeight = 0
+        let totalVolume = 0
+        const productDescriptions: string[] = []
 
-        const totalWeight = productsForDestination.reduce((sum, p) => {
-          return sum + (p.product.weight_per_unit || 0) * p.quantity
-        }, 0)
-
-        const totalVolume = productsForDestination.reduce((sum, p) => {
-          return sum + (p.product.volume_per_unit || 0) * p.quantity
-        }, 0)
+        if (sale.details) {
+          sale.details.forEach(detail => {
+            const product = products.find(p => p.id_product === detail.id_product)
+            if (product) {
+              const weight = (product.weight_per_unit || 0) * detail.quantity
+              const volume = (product.volume_per_unit || 0) * detail.quantity
+              totalWeight += weight
+              totalVolume += volume
+              productDescriptions.push(`${product.name} (${detail.quantity})`)
+            }
+          })
+        }
 
         return {
-          id_cargo: index + 1, // Temporal
-          id_company: 1, // TODO: Obtener del contexto de usuario
-          description: productsForDestination.map(p => `${p.product.name} (${p.quantity})`).join(', '),
+          id_cargo: sale.id_sale, // Usar el ID de la venta como ID de cargo
+          id_company: sale.id_company,
+          description: `Venta ${sale.sale_number || sale.id_sale}: ${productDescriptions.join(', ')}`,
           weight: totalWeight,
           volume: totalVolume,
-          destination_address: dest.address,
-          destination_latitude: dest.latitude,
-          destination_longitude: dest.longitude,
-          recipient_name: dest.recipient_name,
-          recipient_phone: dest.recipient_phone,
+          destination_address: sale.destination_address || sale.client?.address || '',
+          destination_latitude: sale.destination_latitude!,
+          destination_longitude: sale.destination_longitude!,
+          recipient_name: sale.client?.name || sale.client_name || '',
+          recipient_phone: sale.client?.phone || '',
           priority: 'media' as const,
           status: 'pendiente' as const,
           created_at: now,
@@ -236,10 +335,33 @@ export const PlanRoutesView = () => {
       // Filtrar vehículos seleccionados
       const selectedVehiclesData = vehicles.filter(v => selectedVehicles.includes(v.id_vehicle))
       
-      console.log('Datos para optimización:')
+      console.log('=== DATOS PARA OPTIMIZACIÓN ===')
       console.log('- Cargos:', cargos.length)
+      cargos.forEach((cargo, idx) => {
+        console.log(`  Cargo ${idx + 1}: peso=${cargo.weight}kg, volumen=${cargo.volume}L, destino=(${cargo.destination_latitude}, ${cargo.destination_longitude})`)
+      })
       console.log('- Vehículos seleccionados:', selectedVehiclesData.length)
+      selectedVehiclesData.forEach((v, idx) => {
+        console.log(`  Vehículo ${idx + 1}: ${v.license_plate}, tipo=${v.vehicle_type}, capacidad=${v.weight_capacity}kg, status=${v.status}`)
+      })
       console.log('- Conductores:', drivers.length)
+      console.log('- Origen:', { lat: originLatFinal, lng: originLngFinal, address: originAddress })
+
+      // Validar que haya cargos válidos
+      if (cargos.length === 0) {
+        toast.error('No hay cargos válidos para optimizar. Verifica que las ventas tengan direcciones válidas.')
+        setIsOptimizing(false)
+        setStep('sales')
+        return
+      }
+
+      // Validar que haya vehículos seleccionados
+      if (selectedVehiclesData.length === 0) {
+        toast.error('No hay vehículos seleccionados disponibles.')
+        setIsOptimizing(false)
+        setStep('vehicles')
+        return
+      }
 
       // Optimizar rutas
       const optimized = await routeOptimizationService.assignCargosToVehicles(
@@ -253,9 +375,25 @@ export const PlanRoutesView = () => {
         }
       )
 
+      if (optimized.length === 0) {
+        console.error('❌ No se generaron rutas optimizadas')
+        const totalWeight = cargos.reduce((sum, c) => sum + c.weight, 0)
+        const maxCapacity = selectedVehiclesData.reduce((max, v) => Math.max(max, v.weight_capacity), 0)
+        toast.error(
+          `No se pudieron generar rutas. Verifica:
+          - Los vehículos tienen capacidad suficiente (capacidad máxima: ${maxCapacity}kg)
+          - Las ventas tienen direcciones válidas con coordenadas
+          - Los vehículos están disponibles`,
+          { autoClose: 5000 }
+        )
+        setIsOptimizing(false)
+        setStep('vehicles')
+        return
+      }
+
       setOptimizedRoutes(optimized)
       setStep('results')
-      toast.success(`Se optimizaron ${optimized.length} rutas`)
+      toast.success(`Se optimizaron ${optimized.length} ruta(s)`)
     } catch (error) {
       console.error('Error al optimizar rutas:', error)
       toast.error('Error al optimizar las rutas')
@@ -267,11 +405,14 @@ export const PlanRoutesView = () => {
   const handleSaveRoutes = async () => {
     setIsLoading(true)
     try {
+      // Crear un mapa de id_cargo (que es id_sale) a id_route
+      const saleToRouteMap = new Map<number, number>()
+      
       for (const route of optimizedRoutes) {
         // Crear la ruta en el backend
-        await routesService.createRoute({
+        const createdRoute = await routesService.createRoute({
           route_code: route.route_code,
-          id_driver: route.id_driver === 0 ? undefined : route.id_driver, // undefined si no hay conductor
+          id_driver: route.id_driver === 0 ? undefined : route.id_driver,
           id_vehicle: route.id_vehicle,
           origin_address: route.origin_address,
           origin_latitude: route.origin_latitude,
@@ -286,14 +427,28 @@ export const PlanRoutesView = () => {
           estimated_distance: route.total_distance,
           estimated_duration: route.total_duration
         })
+        
+        // Mapear cada venta (cargo) a la ruta creada
+        if (createdRoute && createdRoute.id_route) {
+          route.assignments.forEach(assignment => {
+            // El id_cargo es el id_sale
+            saleToRouteMap.set(assignment.cargo.id_cargo, createdRoute.id_route!)
+          })
+        }
       }
+      
+      // TODO: Actualizar las ventas con el id_route asignado
+      // Esto requeriría un método en el servicio de ventas para actualizar el id_route
+      // Por ahora solo guardamos las rutas
+      
       toast.success('Rutas guardadas exitosamente')
       // Resetear formulario
-      setDestinations([])
-      setSelectedProducts([])
+      setSelectedSales([])
       setSelectedVehicles([])
       setOptimizedRoutes([])
-      setStep('destinations')
+      setStep('sales')
+      // Recargar datos para actualizar la lista de ventas
+      await loadInitialData()
     } catch (error) {
       console.error('Error al guardar rutas:', error)
       toast.error('Error al guardar las rutas')
@@ -312,39 +467,45 @@ export const PlanRoutesView = () => {
       {/* Pasos */}
       <div className="bg-white rounded-lg shadow-sm p-6">
         <div className="flex items-center justify-between mb-6">
-          {['destinations', 'products', 'vehicles', 'optimize', 'results'].map((s, index) => (
-            <div key={s} className="flex items-center flex-1">
-              <div
-                className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold ${
-                  step === s
-                    ? 'bg-blue-600 text-white'
-                    : ['destinations', 'products', 'vehicles', 'optimize', 'results'].indexOf(step) > index
-                    ? 'bg-green-500 text-white'
-                    : 'bg-gray-200 text-gray-600'
-                }`}
-              >
-                {index + 1}
+          {['sales', 'vehicles', 'optimize', 'results'].map((s, index) => {
+            const stepLabels = ['Ventas', 'Vehículos', 'Optimizando', 'Resultados']
+            return (
+              <div key={s} className="flex items-center flex-1">
+                <div className="flex flex-col items-center flex-1">
+                  <div
+                    className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold ${
+                      step === s
+                        ? 'bg-blue-600 text-white'
+                        : ['sales', 'vehicles', 'optimize', 'results'].indexOf(step) > index
+                        ? 'bg-green-500 text-white'
+                        : 'bg-gray-200 text-gray-600'
+                    }`}
+                  >
+                    {index + 1}
+                  </div>
+                  <span className="text-xs text-gray-600 mt-1">{stepLabels[index]}</span>
+                </div>
+                {index < 3 && (
+                  <div
+                    className={`flex-1 h-1 mx-2 ${
+                      ['sales', 'vehicles', 'optimize', 'results'].indexOf(step) > index
+                        ? 'bg-green-500'
+                        : 'bg-gray-200'
+                    }`}
+                  />
+                )}
               </div>
-              {index < 4 && (
-                <div
-                  className={`flex-1 h-1 mx-2 ${
-                    ['destinations', 'products', 'vehicles', 'optimize', 'results'].indexOf(step) > index
-                      ? 'bg-green-500'
-                      : 'bg-gray-200'
-                  }`}
-                />
-              )}
-            </div>
-          ))}
+            )
+          })}
         </div>
       </div>
 
-      {/* Paso 1: Ubicaciones */}
-      {step === 'destinations' && (
+      {/* Paso 1: Seleccionar Ventas */}
+      {step === 'sales' && (
         <Card className="p-6">
           <div className="flex items-center gap-2 mb-4">
-            <MapPin className="w-5 h-5 text-blue-600" />
-            <h2 className="text-xl font-semibold text-gray-800">Ubicaciones de Destino</h2>
+            <ShoppingCart className="w-5 h-5 text-blue-600" />
+            <h2 className="text-xl font-semibold text-gray-800">Seleccionar Ventas para Planificar</h2>
           </div>
 
           <div className="space-y-4 mb-6">
@@ -371,208 +532,156 @@ export const PlanRoutesView = () => {
 
             <div className="border-t pt-4">
               <div className="flex items-center justify-between mb-4">
-                <Label>Destinos</Label>
-                <Button type="button" onClick={handleAddDestination} size="sm">
-                  <Plus className="w-4 h-4 mr-2" />
-                  Agregar Destino
-                </Button>
+                <Label>Ventas Pendientes ({selectedSales.length} seleccionadas)</Label>
               </div>
 
-              {destinations.length === 0 ? (
-                <p className="text-gray-500 text-sm">No hay destinos agregados</p>
+              {sales.length === 0 ? (
+                <p className="text-gray-500 text-sm py-8 text-center">
+                  No hay ventas pendientes para planificar rutas
+                </p>
               ) : (
-                <div className="space-y-4">
-                  {destinations.map((dest) => (
-                    <div key={dest.id} className="border rounded-lg p-4 space-y-3">
-                      <div className="flex items-start justify-between">
-                        <h3 className="font-medium text-gray-800">Destino {destinations.indexOf(dest) + 1}</h3>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleRemoveDestination(dest.id)}
+                <div className="space-y-3">
+                  {sales.map((sale) => {
+                    const isSelected = selectedSales.includes(sale.id_sale)
+                    const formatCurrency = (amount: number) => {
+                      return new Intl.NumberFormat('es-CO', {
+                        style: 'currency',
+                        currency: 'COP',
+                        minimumFractionDigits: 0
+                      }).format(amount)
+                    }
+                    
+                    return (
+                      <div
+                        key={sale.id_sale}
+                        className={`border rounded-lg p-4 transition-all ${
+                          isSelected
+                            ? 'border-blue-500 bg-blue-50'
+                            : 'hover:border-gray-400'
+                        }`}
+                      >
+                        <div 
+                          className="cursor-pointer"
+                          onClick={() => handleSaleToggle(sale.id_sale)}
                         >
-                          <X className="w-4 h-4" />
-                        </Button>
-                      </div>
-                      <div>
-                        <AddressAutocomplete
-                          value={dest.address}
-                          onChange={(address, lat, lng) => {
-                            const updated = destinations.map(d => {
-                              if (d.id === dest.id) {
-                                return { ...d, address, latitude: lat, longitude: lng }
-                              }
-                              return d
-                            })
-                            setDestinations(updated)
-                          }}
-                          placeholder="Buscar dirección de destino..."
-                          label="Dirección"
-                          required
-                        />
-                        {(dest.latitude && dest.longitude) && (
-                          <p className="text-xs text-gray-500 mt-1">
-                            Coordenadas: {dest.latitude.toFixed(6)}, {dest.longitude.toFixed(6)}
-                          </p>
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-2">
+                                <h3 className="font-semibold text-gray-800">
+                                  Venta {sale.sale_number || `#${sale.id_sale}`}
+                                </h3>
+                                {isSelected && (
+                                  <CheckCircle2 className="w-5 h-5 text-blue-600" />
+                                )}
+                              </div>
+                              <div className="space-y-1 text-sm text-gray-600">
+                                <p><strong>Cliente:</strong> {sale.client_name || sale.client?.name || 'N/A'}</p>
+                                <p><strong>Teléfono:</strong> {sale.client?.phone || 'N/A'}</p>
+                                <p><strong>Total:</strong> {formatCurrency(sale.total)}</p>
+                                {sale.details && sale.details.length > 0 && (
+                                  <div className="mt-2">
+                                    <p className="font-medium text-gray-700">Productos:</p>
+                                    <ul className="list-disc list-inside text-xs text-gray-600 ml-2">
+                                      {sale.details.map((detail, idx) => (
+                                        <li key={idx}>
+                                          {detail.product_name || `Producto ${detail.id_product}`} - 
+                                          Cantidad: {detail.quantity} - 
+                                          {formatCurrency(detail.subtotal)}
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        {/* Dirección de destino - solo se muestra si la venta está seleccionada */}
+                        {isSelected && (
+                          <div className="mt-4 pt-4 border-t border-blue-200" onClick={(e) => e.stopPropagation()}>
+                            <AddressAutocomplete
+                              value={sale.destination_address || sale.client?.address || ''}
+                              onChange={(address, lat, lng) => {
+                                const updated = sales.map(s => {
+                                  if (s.id_sale === sale.id_sale) {
+                                    return {
+                                      ...s,
+                                      destination_address: address,
+                                      destination_latitude: lat,
+                                      destination_longitude: lng
+                                    }
+                                  }
+                                  return s
+                                })
+                                setSales(updated)
+                              }}
+                              placeholder="Buscar dirección de destino..."
+                              label="Dirección de Destino"
+                              required
+                            />
+                            {(sale.destination_latitude && sale.destination_longitude) && (
+                              <p className="text-xs text-gray-500 mt-1">
+                                Coordenadas: {sale.destination_latitude.toFixed(6)}, {sale.destination_longitude.toFixed(6)}
+                              </p>
+                            )}
+                          </div>
                         )}
                       </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <Label>Nombre del Destinatario</Label>
-                          <Input
-                            value={dest.recipient_name || ''}
-                            onChange={(e) => {
-                              const updated = destinations.map(d => {
-                                if (d.id === dest.id) {
-                                  return { ...d, recipient_name: e.target.value }
-                                }
-                                return d
-                              })
-                              setDestinations(updated)
-                            }}
-                            placeholder="Nombre"
-                          />
-                        </div>
-                        <div>
-                          <Label>Teléfono</Label>
-                          <Input
-                            value={dest.recipient_phone || ''}
-                            onChange={(e) => {
-                              const updated = destinations.map(d => {
-                                if (d.id === dest.id) {
-                                  return { ...d, recipient_phone: e.target.value }
-                                }
-                                return d
-                              })
-                              setDestinations(updated)
-                            }}
-                            placeholder="Teléfono"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               )}
             </div>
+
+            {selectedSales.length > 0 && (
+              <div className="bg-blue-50 rounded-lg p-4">
+                <h3 className="font-semibold text-gray-800 mb-2">Resumen de Carga Seleccionada</h3>
+                <div className="space-y-1 text-sm">
+                  <p><strong>Ventas seleccionadas:</strong> {selectedSales.length}</p>
+                  <p><strong>Valor total de ventas:</strong> {
+                    new Intl.NumberFormat('es-CO', {
+                      style: 'currency',
+                      currency: 'COP',
+                      minimumFractionDigits: 0
+                    }).format(
+                      sales
+                        .filter(s => selectedSales.includes(s.id_sale))
+                        .reduce((sum, sale) => sum + sale.total, 0)
+                    )
+                  }</p>
+                  {calculateTotalVolume() > 0 && (
+                    <p><strong>Volumen total estimado:</strong> {calculateTotalVolume().toFixed(2)} L</p>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="flex justify-end">
             <Button
               onClick={() => {
-                if (destinations.length > 0 && originAddress) {
-                  setStep('products')
-                } else {
-                  toast.error('Completa todos los campos requeridos')
+                if (selectedSales.length === 0) {
+                  toast.error('Selecciona al menos una venta')
+                  return
                 }
-              }}
-            >
-              Siguiente: Productos
-            </Button>
-          </div>
-        </Card>
-      )}
-
-      {/* Paso 2: Productos */}
-      {step === 'products' && (
-        <Card className="p-6">
-          <div className="flex items-center gap-2 mb-4">
-            <Package className="w-5 h-5 text-blue-600" />
-            <h2 className="text-xl font-semibold text-gray-800">Productos a Transportar</h2>
-          </div>
-
-          <div className="mb-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {products.map((product) => (
-                <div
-                  key={product.id_product}
-                  className="border rounded-lg p-4 hover:border-blue-500 transition-colors"
-                >
-                  <h3 className="font-medium text-gray-800 mb-1">{product.name}</h3>
-                  <p className="text-sm text-gray-600 mb-2">{product.sku}</p>
-                  <div className="text-xs text-gray-500 space-y-1">
-                    {product.weight_per_unit && (
-                      <p>Peso: {product.weight_per_unit} kg/unidad</p>
-                    )}
-                    {product.volume_per_unit && (
-                      <p>Volumen: {product.volume_per_unit} L/unidad</p>
-                    )}
-                  </div>
-                  {selectedProducts.find(sp => sp.product.id_product === product.id_product) ? (
-                    <div className="mt-3 flex items-center gap-2">
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        onClick={() =>
-                          handleProductQuantityChange(
-                            product.id_product,
-                            selectedProducts.find(sp => sp.product.id_product === product.id_product)!.quantity - 1
-                          )
-                        }
-                      >
-                        -
-                      </Button>
-                      <span className="flex-1 text-center font-medium">
-                        {selectedProducts.find(sp => sp.product.id_product === product.id_product)!.quantity}
-                      </span>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleAddProduct(product)}
-                      >
-                        +
-                      </Button>
-                    </div>
-                  ) : (
-                    <Button
-                      type="button"
-                      size="sm"
-                      className="w-full mt-3"
-                      onClick={() => handleAddProduct(product)}
-                    >
-                      Agregar
-                    </Button>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {selectedProducts.length > 0 && (
-            <div className="bg-blue-50 rounded-lg p-4 mb-6">
-              <h3 className="font-semibold text-gray-800 mb-2">Resumen de Carga</h3>
-              <div className="space-y-2">
-                {selectedProducts.map((sp) => (
-                  <div key={sp.product.id_product} className="flex justify-between text-sm">
-                    <span>{sp.product.name} x {sp.quantity}</span>
-                    <span className="font-medium">
-                      {(sp.product.weight_per_unit || 0) * sp.quantity} kg
-                    </span>
-                  </div>
-                ))}
-                <div className="border-t pt-2 mt-2 flex justify-between font-semibold">
-                  <span>Total:</span>
-                  <span>{calculateTotalWeight().toFixed(2)} kg</span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          <div className="flex justify-between">
-            <Button variant="outline" onClick={() => setStep('destinations')}>
-              Anterior
-            </Button>
-            <Button
-              onClick={() => {
-                if (selectedProducts.length > 0) {
-                  setStep('vehicles')
-                } else {
-                  toast.error('Selecciona al menos un producto')
+                if (!originAddress) {
+                  toast.error('Especifica la dirección de origen')
+                  return
                 }
+                
+                // Validar que todas las ventas seleccionadas tengan dirección de destino
+                const selectedSalesData = sales.filter(s => selectedSales.includes(s.id_sale))
+                const salesWithoutAddress = selectedSalesData.filter(s => !s.destination_address)
+                
+                if (salesWithoutAddress.length > 0) {
+                  toast.error(`${salesWithoutAddress.length} venta(s) no tienen dirección de destino. Por favor, completa las direcciones.`)
+                  return
+                }
+                
+                setStep('vehicles')
               }}
+              disabled={selectedSales.length === 0 || !originAddress}
             >
               Siguiente: Vehículos
             </Button>
@@ -580,7 +689,7 @@ export const PlanRoutesView = () => {
         </Card>
       )}
 
-      {/* Paso 3: Vehículos */}
+      {/* Paso 2: Vehículos */}
       {step === 'vehicles' && (
         <Card className="p-6">
           <div className="flex items-center gap-2 mb-4">
@@ -590,8 +699,17 @@ export const PlanRoutesView = () => {
 
           <div className="mb-6">
             <p className="text-sm text-gray-600 mb-4">
-              Carga total: {calculateTotalWeight().toFixed(2)} kg
-              {calculateTotalVolume() > 0 && ` / ${calculateTotalVolume().toFixed(2)} L`}
+              Valor total de ventas: {
+                new Intl.NumberFormat('es-CO', {
+                  style: 'currency',
+                  currency: 'COP',
+                  minimumFractionDigits: 0
+                }).format(
+                  sales
+                    .filter(s => selectedSales.includes(s.id_sale))
+                    .reduce((sum, sale) => sum + sale.total, 0)
+                )
+              }
             </p>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {vehicles.map((vehicle) => {
@@ -639,7 +757,7 @@ export const PlanRoutesView = () => {
           </div>
 
           <div className="flex justify-between">
-            <Button variant="outline" onClick={() => setStep('products')}>
+            <Button variant="outline" onClick={() => setStep('sales')}>
               Anterior
             </Button>
             <Button onClick={handleOptimize} disabled={selectedVehicles.length === 0}>
@@ -693,15 +811,56 @@ export const PlanRoutesView = () => {
                     </div>
                     <div>
                       <p className="text-gray-500">Distancia</p>
-                      <p className="font-semibold">{route.total_distance.toFixed(2)} km</p>
+                      <p className="font-semibold">
+                        {typeof route.total_distance === 'number' && !isNaN(route.total_distance)
+                          ? `${route.total_distance.toFixed(2)} km`
+                          : '0.00 km'}
+                      </p>
                     </div>
                     <div>
                       <p className="text-gray-500">Duración</p>
-                      <p className="font-semibold">{route.total_duration.toFixed(0)} min</p>
+                      <p className="font-semibold">
+                        {typeof route.total_duration === 'number' && !isNaN(route.total_duration)
+                          ? `${route.total_duration.toFixed(0)} min`
+                          : '0 min'}
+                      </p>
                     </div>
                     <div>
-                      <p className="text-gray-500">Peso Total</p>
-                      <p className="font-semibold">{route.total_weight.toFixed(2)} kg</p>
+                      <p className="text-gray-500">Valor Total</p>
+                      <p className="font-semibold">
+                        {(() => {
+                          // Calcular valor de ventas en esta ruta
+                          let salesInRoute = 0
+                          
+                          route.assignments.forEach(assignment => {
+                            const sale = sales.find(s => s.id_sale === assignment.cargo.id_cargo)
+                            if (sale && sale.total != null) {
+                              const saleTotal = Number(sale.total)
+                              if (!isNaN(saleTotal) && isFinite(saleTotal)) {
+                                salesInRoute += saleTotal
+                              }
+                            }
+                          })
+                          
+                          // Sumar 1000 por cada km
+                          const distance = typeof route.total_distance === 'number' && !isNaN(route.total_distance) && isFinite(route.total_distance)
+                            ? route.total_distance 
+                            : 0
+                          const distanceCost = distance * 1000
+                          const totalValue = salesInRoute + distanceCost
+                          
+                          // Validar que el valor total sea un número válido
+                          if (isNaN(totalValue) || !isFinite(totalValue)) {
+                            return '$0'
+                          }
+                          
+                          return new Intl.NumberFormat('es-CO', {
+                            style: 'currency',
+                            currency: 'COP',
+                            minimumFractionDigits: 0
+                          }).format(totalValue)
+                        })()}
+                      </p>
                     </div>
                   </div>
                   <div className="mt-3 pt-3 border-t">
@@ -734,8 +893,21 @@ export const PlanRoutesView = () => {
             {optimizedRoutes.length > 0 ? (
               <OptimizedRouteMap routes={optimizedRoutes} />
             ) : (
-              <div className="w-full h-[600px] rounded-2xl overflow-hidden shadow-lg bg-gray-100 flex items-center justify-center">
-                <p className="text-gray-500">No hay rutas para mostrar</p>
+              <div className="w-full h-[600px] rounded-2xl overflow-hidden shadow-lg bg-gray-100 flex flex-col items-center justify-center">
+                <p className="text-gray-500 text-lg mb-2">No hay rutas para mostrar</p>
+                <p className="text-gray-400 text-sm">No se generaron rutas optimizadas. Verifica que:</p>
+                <ul className="text-gray-400 text-sm mt-2 list-disc list-inside">
+                  <li>Las ventas tengan direcciones válidas con coordenadas</li>
+                  <li>Los vehículos seleccionados tengan capacidad suficiente</li>
+                  <li>Haya ventas seleccionadas</li>
+                </ul>
+                <Button 
+                  variant="outline" 
+                  className="mt-4"
+                  onClick={() => setStep('vehicles')}
+                >
+                  Volver a Optimizar
+                </Button>
               </div>
             )}
           </Card>

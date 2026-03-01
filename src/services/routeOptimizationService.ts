@@ -107,10 +107,19 @@ export class RouteOptimizationService {
       availableDrivers = drivers // Usar todos los conductores si no hay disponibles
     }
 
-    // Filtrar vehículos disponibles (más flexible: activos, con o sin conductor)
-    const availableVehiclesFiltered = availableVehicles.filter(
+    // Filtrar vehículos disponibles (más flexible: aceptar cualquier status si están en la lista)
+    // Si no hay vehículos activos, usar todos los disponibles
+    let availableVehiclesFiltered = availableVehicles.filter(
       v => v.status === 'activo'
     )
+    
+    // Si no hay vehículos activos, usar todos los disponibles
+    if (availableVehiclesFiltered.length === 0 && availableVehicles.length > 0) {
+      console.log('No hay vehículos activos, usando todos los vehículos disponibles')
+      availableVehiclesFiltered = availableVehicles
+    }
+    
+    console.log(`Vehículos disponibles para asignación: ${availableVehiclesFiltered.length}`)
 
     // Ordenar cargas por prioridad y peso
     const sortedCargos = [...cargos]
@@ -141,23 +150,14 @@ export class RouteOptimizationService {
           }
 
           // Verificar tipo de vehículo apropiado (lógica más flexible)
-          let isSuitable = false
-          if (cargo.weight <= vehicle.weight_capacity) {
-            // Cargas muy pequeñas pueden ir en motos
-            if (cargo.weight < 50 && vehicle.vehicle_type === 'moto') isSuitable = true
-            // Cargas medianas pueden ir en carros o furgonetas
-            else if (cargo.weight < 500 && ['carro', 'furgoneta'].includes(vehicle.vehicle_type)) {
-              isSuitable = true
-            }
-            // Cargas grandes requieren camiones
-            else if (cargo.weight >= 50 && ['camion', 'camion_articulado'].includes(vehicle.vehicle_type)) {
-              isSuitable = true
-            }
-            // Si no cumple ninguna condición específica pero tiene capacidad, permitirlo
-            else isSuitable = true
+          // Si el vehículo tiene capacidad suficiente, permitirlo independientemente del tipo
+          let isSuitable = cargo.weight <= vehicle.weight_capacity
+          
+          // Si tiene capacidad, siempre es adecuado (lógica más permisiva)
+          if (!isSuitable) {
+            console.log(`Vehículo ${vehicle.license_plate} rechazado: capacidad insuficiente (${vehicle.weight_capacity}kg < ${cargo.weight}kg)`)
+            return null
           }
-
-          if (!isSuitable) return null
 
           // Buscar ruta existente para este vehículo
           const existingRoute = optimizedRoutes.find(
@@ -188,7 +188,13 @@ export class RouteOptimizationService {
         .filter((item): item is NonNullable<typeof item> => item !== null)
 
       if (suitableVehicles.length === 0) {
-        console.log(`No se encontró vehículo adecuado para carga ${cargo.id_cargo} (peso: ${cargo.weight} kg)`)
+        console.error(`❌ No se encontró vehículo adecuado para carga ${cargo.id_cargo}`)
+        console.error(`   - Peso: ${cargo.weight} kg`)
+        console.error(`   - Volumen: ${cargo.volume || 0} L`)
+        console.error(`   - Vehículos disponibles: ${availableVehiclesFiltered.length}`)
+        availableVehiclesFiltered.forEach(v => {
+          console.error(`     * ${v.license_plate}: capacidad=${v.weight_capacity}kg, tipo=${v.vehicle_type}, status=${v.status}`)
+        })
         continue
       }
 
@@ -271,8 +277,20 @@ export class RouteOptimizationService {
       console.log(`Carga ${cargo.id_cargo} asignada a vehículo ${suitableVehicle.license_plate} (ruta: ${existingRoute.route_code})`)
     }
 
+    console.log(`=== RESULTADO DE ASIGNACIÓN ===`)
     console.log(`Total de rutas creadas antes de optimizar: ${optimizedRoutes.length}`)
     console.log(`Cargos asignados: ${assignedCargos.size} de ${sortedCargos.length}`)
+    
+    if (optimizedRoutes.length === 0) {
+      console.error('❌ NO SE CREARON RUTAS')
+      console.error(`Cargos procesados: ${sortedCargos.length}`)
+      console.error(`Vehículos disponibles: ${availableVehiclesFiltered.length}`)
+      sortedCargos.forEach(cargo => {
+        if (!assignedCargos.has(cargo.id_cargo)) {
+          console.error(`  - Cargo ${cargo.id_cargo} NO asignado (peso: ${cargo.weight}kg)`)
+        }
+      })
+    }
 
     // Optimizar orden de paradas para cada ruta
     for (const route of optimizedRoutes) {

@@ -38,6 +38,7 @@ export const AddressAutocomplete = ({
   const [isLoading, setIsLoading] = useState(false)
   const wrapperRef = useRef<HTMLDivElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const isSelectingRef = useRef(false)
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -64,16 +65,16 @@ export const AddressAutocomplete = ({
       // Agregar "Bogotá, Colombia" al query para limitar la búsqueda
       const searchQuery = `${query}, Bogotá, Colombia`
       
-      // Viewbox de Bogotá (bounding box)
+      // Viewbox de Bogotá (bounding box) - expandido para incluir más resultados
       // Formato: min_lon,min_lat,max_lon,max_lat
-      // Bogotá: aproximadamente -74.2, 4.5, -74.0, 4.8
-      const viewbox = '-74.2,4.5,-74.0,4.8'
+      // Bogotá: aproximadamente -74.2, 4.5, -74.0, 4.8 (expandido un poco)
+      const viewbox = '-74.3,4.4,-73.9,4.9'
       
-      // URL con parámetros para limitar a Bogotá:
-      // - viewbox: área geográfica de búsqueda
-      // - bounded=1: solo resultados dentro del viewbox
+      // URL con parámetros para priorizar Bogotá pero no limitar estrictamente:
+      // - viewbox: área geográfica de búsqueda (prioriza pero no limita estrictamente)
+      // - bounded=0: permite resultados fuera del viewbox pero los prioriza
       // - countrycodes=co: limitar a Colombia
-      const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=10&addressdetails=1&viewbox=${viewbox}&bounded=1&countrycodes=co`
+      const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=10&addressdetails=1&viewbox=${viewbox}&bounded=0&countrycodes=co`
       
       const response = await fetch(url, {
         headers: {
@@ -82,15 +83,28 @@ export const AddressAutocomplete = ({
       })
       const data: AddressSuggestion[] = await response.json()
       
-      // Filtrar resultados para asegurar que sean de Bogotá
-      const filteredData = (data || []).filter(item => {
+      // Filtrar resultados de forma más flexible
+      // Verificar que sean de Colombia (requisito mínimo)
+      const colombiaResults = (data || []).filter(item => {
         const address = item.address || {}
-        const city = (address.city || address.town || '').toLowerCase()
-        const state = (address.state || '').toLowerCase()
         const country = (address.country || '').toLowerCase()
         const displayName = (item.display_name || '').toLowerCase()
         
-        // Verificar que sea de Bogotá
+        return country.includes('colombia') || 
+               country.includes('co') ||
+               displayName.includes('colombia')
+      })
+      
+      // Separar resultados de Bogotá y otros
+      const bogotaResults: AddressSuggestion[] = []
+      const otherResults: AddressSuggestion[] = []
+      
+      colombiaResults.forEach(item => {
+        const address = item.address || {}
+        const city = (address.city || address.town || '').toLowerCase()
+        const state = (address.state || '').toLowerCase()
+        const displayName = (item.display_name || '').toLowerCase()
+        
         const isBogota = 
           city.includes('bogotá') || 
           city.includes('bogota') ||
@@ -100,17 +114,24 @@ export const AddressAutocomplete = ({
           displayName.includes('bogotá') ||
           displayName.includes('bogota')
         
-        // Verificar que sea de Colombia
-        const isColombia = 
-          country.includes('colombia') || 
-          country.includes('co') ||
-          displayName.includes('colombia')
-        
-        return isBogota && isColombia
+        if (isBogota) {
+          bogotaResults.push(item)
+        } else {
+          otherResults.push(item)
+        }
       })
       
-      // Limitar a 5 resultados y mostrar solo los de Bogotá
-      setSuggestions(filteredData.slice(0, 5))
+      // Priorizar resultados de Bogotá, pero si hay menos de 3, incluir otros de Colombia
+      let finalResults: AddressSuggestion[] = []
+      if (bogotaResults.length >= 3) {
+        finalResults = bogotaResults
+      } else {
+        // Combinar resultados de Bogotá con otros, priorizando Bogotá
+        finalResults = [...bogotaResults, ...otherResults]
+      }
+      
+      // Limitar a 5 resultados
+      setSuggestions(finalResults.slice(0, 5))
       setShowSuggestions(true)
     } catch (error) {
       console.error('Error al buscar direcciones:', error)
@@ -136,9 +157,40 @@ export const AddressAutocomplete = ({
   }
 
   const handleSelectSuggestion = (suggestion: AddressSuggestion) => {
+    isSelectingRef.current = true
     onChange(suggestion.display_name, parseFloat(suggestion.lat), parseFloat(suggestion.lon))
     setShowSuggestions(false)
     setSuggestions([])
+    // Resetear el flag después de un breve delay
+    setTimeout(() => {
+      isSelectingRef.current = false
+    }, 300)
+  }
+
+  // Función para buscar coordenadas de una dirección cuando el usuario no selecciona una sugerencia
+  const geocodeAddress = async (address: string) => {
+    if (!address || address.length < 3) return
+
+    try {
+      const searchQuery = `${address}, Bogotá, Colombia`
+      const viewbox = '-74.3,4.4,-73.9,4.9'
+      const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=1&addressdetails=1&viewbox=${viewbox}&bounded=0&countrycodes=co`
+      
+      const response = await fetch(url, {
+        headers: {
+          'User-Agent': 'RoutePlanningApp/1.0'
+        }
+      })
+      const data: AddressSuggestion[] = await response.json()
+      
+      if (data && data.length > 0) {
+        const result = data[0]
+        // Actualizar con las coordenadas encontradas
+        onChange(address, parseFloat(result.lat), parseFloat(result.lon))
+      }
+    } catch (error) {
+      console.error('Error al geocodificar dirección:', error)
+    }
   }
 
   return (
@@ -157,6 +209,28 @@ export const AddressAutocomplete = ({
           onFocus={() => {
             if (suggestions.length > 0) {
               setShowSuggestions(true)
+            }
+          }}
+          onBlur={() => {
+            // Pequeño delay para permitir que se ejecute el onClick de las sugerencias
+            setTimeout(() => {
+              setShowSuggestions(false)
+              // Si hay una dirección pero no se seleccionó una sugerencia, intentar geocodificar
+              if (!isSelectingRef.current && value && value.length >= 3) {
+                geocodeAddress(value)
+              }
+            }, 200)
+          }}
+          onKeyDown={(e) => {
+            // Si presiona Enter y hay sugerencias, seleccionar la primera
+            if (e.key === 'Enter' && suggestions.length > 0) {
+              e.preventDefault()
+              handleSelectSuggestion(suggestions[0])
+            }
+            // Si presiona Enter sin sugerencias, intentar geocodificar
+            else if (e.key === 'Enter' && value && value.length >= 3) {
+              e.preventDefault()
+              geocodeAddress(value)
             }
           }}
           placeholder={placeholder}
