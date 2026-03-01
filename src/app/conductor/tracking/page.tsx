@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation'
 import {
   Truck, Navigation, Gauge, Wifi, WifiOff,
   LogOut, Play, Square, Route, Loader2, AlertTriangle,
-  Target
+  Target, MapPin, Package, Clock, Ruler, CheckCircle2,
+  ChevronDown, ChevronUp, RefreshCw
 } from 'lucide-react'
 import { toast } from 'react-toastify'
 import { GPSTrackingService } from '@/services/gpsTrackingService'
@@ -19,15 +20,28 @@ interface DriverInfo {
   status: string
 }
 
-interface ActiveRoute {
+interface RouteInfo {
   id_route: number
   route_code: string
   origin_address: string
   destination_address: string
+  origin_latitude?: number
+  origin_longitude?: number
+  destination_latitude?: number
+  destination_longitude?: number
+  cargo_weight?: number
+  cargo_volume?: number
+  cargo_description?: string
+  estimated_distance?: number
+  estimated_duration?: number
   status: string
+  notes?: string
   license_plate?: string
   vehicle_type?: string
+  brand?: string
+  model?: string
   id_vehicle?: number
+  created_at?: string
 }
 
 interface AssignedVehicle {
@@ -69,11 +83,16 @@ const VEHICLE_STATUS_LABELS: Record<string, { label: string; color: string }> = 
 export default function ConductorTrackingPage() {
   const router = useRouter()
   const [driver, setDriver] = useState<DriverInfo | null>(null)
-  const [activeRoute, setActiveRoute] = useState<ActiveRoute | null>(null)
+  const [activeRoute, setActiveRoute] = useState<RouteInfo | null>(null)
+  const [pendingRoutes, setPendingRoutes] = useState<RouteInfo[]>([])
   const [assignedVehicle, setAssignedVehicle] = useState<AssignedVehicle | null>(null)
   const [driverError, setDriverError] = useState<string | null>(null)
   const [isTracking, setIsTracking] = useState(false)
   const [wsConnected, setWsConnected] = useState(false)
+  const [startingRouteId, setStartingRouteId] = useState<number | null>(null)
+  const [completingRoute, setCompletingRoute] = useState(false)
+  const [expandedRoute, setExpandedRoute] = useState<number | null>(null)
+  const [refreshing, setRefreshing] = useState(false)
   const serviceRef = useRef<GPSTrackingService | null>(null)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
@@ -88,70 +107,91 @@ export default function ConductorTrackingPage() {
     isSupported,
   } = useGeolocation(isTracking)
 
-  // Load driver info from localStorage or fetch from API
+  const fetchDriverData = useCallback(async () => {
+    try {
+      const { api } = await import('@/services/api')
+      const res = await api.get('/gps-tracking/driver/me')
+      if (res.data?.driver) {
+        setDriver(res.data.driver)
+        localStorage.setItem('driver', JSON.stringify(res.data.driver))
+
+        if (res.data.activeRoute) {
+          setActiveRoute(res.data.activeRoute)
+          localStorage.setItem('activeRoute', JSON.stringify(res.data.activeRoute))
+        } else {
+          setActiveRoute(null)
+          localStorage.removeItem('activeRoute')
+        }
+
+        setPendingRoutes(res.data.pendingRoutes || [])
+
+        if (res.data.assignedVehicle) {
+          setAssignedVehicle(res.data.assignedVehicle)
+          localStorage.setItem('assignedVehicle', JSON.stringify(res.data.assignedVehicle))
+        }
+      }
+      return true
+    } catch {
+      return false
+    }
+  }, [])
+
+  // Load driver info on mount
   useEffect(() => {
     const loadDriverInfo = async () => {
-      const driverStr = localStorage.getItem('driver')
-      const routeStr = localStorage.getItem('activeRoute')
       const token = localStorage.getItem('access_token') || localStorage.getItem('token')
       const userStr = localStorage.getItem('user')
 
-      // If driver info already cached, use it
-      if (driverStr && token) {
-        try {
-          setDriver(JSON.parse(driverStr))
-          if (routeStr) setActiveRoute(JSON.parse(routeStr))
-          const vehicleStr = localStorage.getItem('assignedVehicle')
-          if (vehicleStr) setAssignedVehicle(JSON.parse(vehicleStr))
-          return
-        } catch { /* fall through to fetch */ }
-      }
-
-      // If no cached driver but user is logged in (came from main login), fetch driver info
-      if (userStr) {
-        try {
-          const user = JSON.parse(userStr)
-          // Fetch driver info from API using cookies
-          const { api } = await import('@/services/api')
-          const res = await api.get('/gps-tracking/driver/me')
-          if (res.data?.driver) {
-            setDriver(res.data.driver)
-            localStorage.setItem('driver', JSON.stringify(res.data.driver))
-            // Also save the token for WebSocket if it came from login response
-            if (!localStorage.getItem('access_token') && localStorage.getItem('token')) {
-              localStorage.setItem('access_token', localStorage.getItem('token')!)
-            }
-            if (res.data.activeRoute) {
-              setActiveRoute(res.data.activeRoute)
-              localStorage.setItem('activeRoute', JSON.stringify(res.data.activeRoute))
-            }
-            if (res.data.assignedVehicle) {
-              setAssignedVehicle(res.data.assignedVehicle)
-              localStorage.setItem('assignedVehicle', JSON.stringify(res.data.assignedVehicle))
-            }
-            return
-          }
-          // API responded but no driver data in the response
-          setDriverError('Tu cuenta no tiene perfil de conductor. Contacta al administrador.')
-        } catch (error: any) {
-          console.error('Error fetching driver info:', error)
-          const status = error?.response?.status
-          if (status === 404) {
-            // User is authenticated but has no driver profile
-            setDriverError('Tu cuenta no tiene perfil de conductor. Contacta al administrador.')
-          } else if (status === 401 || status === 403) {
-            // Truly not authenticated - redirect to login
-            router.push('/auth/login')
-          } else {
-            // Other network/server error
-            setDriverError('Error al conectar con el servidor. Intenta de nuevo mas tarde.')
-          }
-        }
+      if (!token && !userStr) {
+        router.push('/auth/login')
         return
       }
 
-      // No user in localStorage at all - redirect to main login
-      router.push('/auth/login')
+      // Always fetch fresh data from API
+      try {
+        const { api } = await import('@/services/api')
+        const res = await api.get('/gps-tracking/driver/me')
+        if (res.data?.driver) {
+          setDriver(res.data.driver)
+          localStorage.setItem('driver', JSON.stringify(res.data.driver))
+          if (!localStorage.getItem('access_token') && localStorage.getItem('token')) {
+            localStorage.setItem('access_token', localStorage.getItem('token')!)
+          }
+          if (res.data.activeRoute) {
+            setActiveRoute(res.data.activeRoute)
+            localStorage.setItem('activeRoute', JSON.stringify(res.data.activeRoute))
+          }
+          setPendingRoutes(res.data.pendingRoutes || [])
+          if (res.data.assignedVehicle) {
+            setAssignedVehicle(res.data.assignedVehicle)
+            localStorage.setItem('assignedVehicle', JSON.stringify(res.data.assignedVehicle))
+          }
+          return
+        }
+        setDriverError('Tu cuenta no tiene perfil de conductor. Contacta al administrador.')
+      } catch (error: any) {
+        console.error('Error fetching driver info:', error)
+        const status = error?.response?.status
+        if (status === 404) {
+          setDriverError('Tu cuenta no tiene perfil de conductor. Contacta al administrador.')
+        } else if (status === 401 || status === 403) {
+          router.push('/auth/login')
+        } else {
+          // Fallback to cached data
+          const driverStr = localStorage.getItem('driver')
+          if (driverStr) {
+            try {
+              setDriver(JSON.parse(driverStr))
+              const routeStr = localStorage.getItem('activeRoute')
+              if (routeStr) setActiveRoute(JSON.parse(routeStr))
+              const vehicleStr = localStorage.getItem('assignedVehicle')
+              if (vehicleStr) setAssignedVehicle(JSON.parse(vehicleStr))
+            } catch { /* ignore */ }
+          } else {
+            setDriverError('Error al conectar con el servidor. Intenta de nuevo mas tarde.')
+          }
+        }
+      }
     }
 
     loadDriverInfo()
@@ -165,7 +205,6 @@ export default function ConductorTrackingPage() {
       try {
         const { api } = await import('@/services/api')
         const res = await api.get(`/vehicles/by-driver/${driver.id_driver}`)
-        // Backend returns array directly from raw SQL query
         const vehicles = Array.isArray(res.data) ? res.data : (res.data?.data || [])
         if (vehicles.length > 0) {
           setAssignedVehicle(vehicles[0])
@@ -239,10 +278,7 @@ export default function ConductorTrackingPage() {
       })
     }
 
-    // Send immediately
     sendPosition()
-
-    // Then every 5 seconds
     intervalRef.current = setInterval(sendPosition, 5000)
 
     return () => {
@@ -283,6 +319,47 @@ export default function ConductorTrackingPage() {
     router.push('/auth/login')
   }, [handleStopTracking, router])
 
+  const handleStartRoute = async (routeId: number) => {
+    setStartingRouteId(routeId)
+    try {
+      const { api } = await import('@/services/api')
+      const res = await api.patch(`/gps-tracking/route/${routeId}/start`)
+      if (res.data?.success) {
+        toast.success('Ruta iniciada')
+        await fetchDriverData()
+      }
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'Error al iniciar la ruta')
+    } finally {
+      setStartingRouteId(null)
+    }
+  }
+
+  const handleCompleteRoute = async () => {
+    if (!activeRoute) return
+    setCompletingRoute(true)
+    try {
+      const { api } = await import('@/services/api')
+      const res = await api.patch(`/gps-tracking/route/${activeRoute.id_route}/complete`)
+      if (res.data?.success) {
+        toast.success('Ruta completada')
+        handleStopTracking()
+        await fetchDriverData()
+      }
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'Error al completar la ruta')
+    } finally {
+      setCompletingRoute(false)
+    }
+  }
+
+  const handleRefresh = async () => {
+    setRefreshing(true)
+    await fetchDriverData()
+    setRefreshing(false)
+    toast.info('Datos actualizados')
+  }
+
   if (driverError) {
     return (
       <div className="min-h-screen flex items-center justify-center p-6">
@@ -312,6 +389,8 @@ export default function ConductorTrackingPage() {
     )
   }
 
+  const hasRoutes = activeRoute || pendingRoutes.length > 0
+
   return (
     <div className="min-h-screen p-4 pb-8">
       {/* Header */}
@@ -332,12 +411,21 @@ export default function ConductorTrackingPage() {
             </div>
           </div>
         </div>
-        <button
-          onClick={handleLogout}
-          className="p-2.5 bg-white/10 rounded-xl text-blue-300/60 hover:text-white hover:bg-white/20 transition-all"
-        >
-          <LogOut className="w-5 h-5" />
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="p-2.5 bg-white/10 rounded-xl text-blue-300/60 hover:text-white hover:bg-white/20 transition-all"
+          >
+            <RefreshCw className={`w-5 h-5 ${refreshing ? 'animate-spin' : ''}`} />
+          </button>
+          <button
+            onClick={handleLogout}
+            className="p-2.5 bg-white/10 rounded-xl text-blue-300/60 hover:text-white hover:bg-white/20 transition-all"
+          >
+            <LogOut className="w-5 h-5" />
+          </button>
+        </div>
       </div>
 
       {/* Assigned Vehicle Card */}
@@ -378,14 +466,16 @@ export default function ConductorTrackingPage() {
 
       {/* Active Route Card */}
       {activeRoute && (
-        <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-5 border border-white/10 mb-4">
+        <div className="bg-gradient-to-br from-cyan-500/20 to-blue-500/20 backdrop-blur-sm rounded-2xl p-5 border border-cyan-400/30 mb-4">
           <div className="flex items-center gap-2 mb-3">
             <Route className="w-4 h-4 text-cyan-400" />
-            <span className="text-xs font-medium text-cyan-300">Ruta Activa</span>
-            <span className="text-xs bg-cyan-400/20 text-cyan-300 px-2 py-0.5 rounded-full ml-auto">
+            <span className="text-xs font-semibold text-cyan-300">Ruta en Progreso</span>
+            <span className="text-xs bg-cyan-400/20 text-cyan-300 px-2 py-0.5 rounded-full ml-auto font-mono">
               {activeRoute.route_code}
             </span>
           </div>
+
+          {/* Origin → Destination */}
           <div className="space-y-2">
             <div className="flex items-start gap-2">
               <div className="w-2 h-2 rounded-full bg-emerald-400 mt-1.5 shrink-0" />
@@ -397,12 +487,214 @@ export default function ConductorTrackingPage() {
               <span className="text-sm text-white/80">{activeRoute.destination_address}</span>
             </div>
           </div>
-          {activeRoute.license_plate && (
-            <div className="mt-3 pt-3 border-t border-white/10 flex items-center gap-2">
-              <Truck className="w-3.5 h-3.5 text-blue-300/60" />
-              <span className="text-xs text-blue-300/60">{activeRoute.license_plate} - {activeRoute.vehicle_type}</span>
+
+          {/* Route details */}
+          <div className="mt-3 pt-3 border-t border-white/10 grid grid-cols-2 gap-2">
+            {activeRoute.estimated_distance != null && (
+              <div className="flex items-center gap-1.5">
+                <Ruler className="w-3 h-3 text-blue-300/60" />
+                <span className="text-xs text-blue-200">{Number(activeRoute.estimated_distance).toFixed(1)} km</span>
+              </div>
+            )}
+            {activeRoute.estimated_duration != null && (
+              <div className="flex items-center gap-1.5">
+                <Clock className="w-3 h-3 text-blue-300/60" />
+                <span className="text-xs text-blue-200">{Math.round(Number(activeRoute.estimated_duration))} min</span>
+              </div>
+            )}
+            {activeRoute.cargo_weight != null && (
+              <div className="flex items-center gap-1.5">
+                <Package className="w-3 h-3 text-blue-300/60" />
+                <span className="text-xs text-blue-200">{Number(activeRoute.cargo_weight).toFixed(0)} kg</span>
+              </div>
+            )}
+            {activeRoute.license_plate && (
+              <div className="flex items-center gap-1.5">
+                <Truck className="w-3 h-3 text-blue-300/60" />
+                <span className="text-xs text-blue-200">{activeRoute.license_plate}</span>
+              </div>
+            )}
+          </div>
+
+          {/* Cargo description */}
+          {activeRoute.cargo_description && (
+            <div className="mt-3 pt-3 border-t border-white/10">
+              <p className="text-[10px] text-blue-300/50 mb-1">Carga</p>
+              <p className="text-xs text-white/70 leading-relaxed">{activeRoute.cargo_description}</p>
             </div>
           )}
+
+          {/* Complete route button */}
+          <button
+            onClick={handleCompleteRoute}
+            disabled={completingRoute}
+            className="mt-4 w-full py-3 bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400/30 text-emerald-300 font-semibold text-sm rounded-xl transition-all flex items-center justify-center gap-2"
+          >
+            {completingRoute ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Completando...
+              </>
+            ) : (
+              <>
+                <CheckCircle2 className="w-4 h-4" />
+                Marcar como Completada
+              </>
+            )}
+          </button>
+        </div>
+      )}
+
+      {/* Pending Routes */}
+      {pendingRoutes.length > 0 && (
+        <div className="mb-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <MapPin className="w-4 h-4 text-amber-400" />
+            <span className="text-xs font-semibold text-amber-300">
+              {pendingRoutes.length} Ruta{pendingRoutes.length > 1 ? 's' : ''} Pendiente{pendingRoutes.length > 1 ? 's' : ''}
+            </span>
+          </div>
+
+          {pendingRoutes.map(route => {
+            const isExpanded = expandedRoute === route.id_route
+            const isStarting = startingRouteId === route.id_route
+
+            return (
+              <div key={route.id_route} className="bg-white/10 backdrop-blur-sm rounded-2xl border border-amber-400/20 overflow-hidden">
+                {/* Route header - always visible */}
+                <button
+                  onClick={() => setExpandedRoute(isExpanded ? null : route.id_route)}
+                  className="w-full p-4 text-left flex items-center gap-3"
+                >
+                  <div className="w-10 h-10 bg-amber-400/20 rounded-xl flex items-center justify-center shrink-0">
+                    <Route className="w-5 h-5 text-amber-400" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-white font-semibold text-sm">{route.route_code}</p>
+                    <p className="text-blue-300/60 text-xs truncate">{route.destination_address}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-400/20 text-amber-300 font-medium">
+                      Pendiente
+                    </span>
+                    {isExpanded ? (
+                      <ChevronUp className="w-4 h-4 text-blue-300/60" />
+                    ) : (
+                      <ChevronDown className="w-4 h-4 text-blue-300/60" />
+                    )}
+                  </div>
+                </button>
+
+                {/* Expanded details */}
+                {isExpanded && (
+                  <div className="px-4 pb-4 space-y-3">
+                    {/* Origin → Destination */}
+                    <div className="space-y-2 bg-white/5 rounded-xl p-3">
+                      <div className="flex items-start gap-2">
+                        <div className="w-2 h-2 rounded-full bg-emerald-400 mt-1.5 shrink-0" />
+                        <span className="text-xs text-white/80">{route.origin_address}</span>
+                      </div>
+                      <div className="ml-1 border-l border-dashed border-white/20 h-2" />
+                      <div className="flex items-start gap-2">
+                        <div className="w-2 h-2 rounded-full bg-red-400 mt-1.5 shrink-0" />
+                        <span className="text-xs text-white/80">{route.destination_address}</span>
+                      </div>
+                    </div>
+
+                    {/* Stats */}
+                    <div className="grid grid-cols-2 gap-2">
+                      {route.estimated_distance != null && (
+                        <div className="bg-white/5 rounded-lg p-2.5 flex items-center gap-2">
+                          <Ruler className="w-3.5 h-3.5 text-blue-300/60" />
+                          <div>
+                            <p className="text-[10px] text-blue-300/50">Distancia</p>
+                            <p className="text-xs text-white font-medium">{Number(route.estimated_distance).toFixed(1)} km</p>
+                          </div>
+                        </div>
+                      )}
+                      {route.estimated_duration != null && (
+                        <div className="bg-white/5 rounded-lg p-2.5 flex items-center gap-2">
+                          <Clock className="w-3.5 h-3.5 text-blue-300/60" />
+                          <div>
+                            <p className="text-[10px] text-blue-300/50">Duracion</p>
+                            <p className="text-xs text-white font-medium">{Math.round(Number(route.estimated_duration))} min</p>
+                          </div>
+                        </div>
+                      )}
+                      {route.cargo_weight != null && (
+                        <div className="bg-white/5 rounded-lg p-2.5 flex items-center gap-2">
+                          <Package className="w-3.5 h-3.5 text-blue-300/60" />
+                          <div>
+                            <p className="text-[10px] text-blue-300/50">Peso</p>
+                            <p className="text-xs text-white font-medium">{Number(route.cargo_weight).toFixed(0)} kg</p>
+                          </div>
+                        </div>
+                      )}
+                      {route.license_plate && (
+                        <div className="bg-white/5 rounded-lg p-2.5 flex items-center gap-2">
+                          <Truck className="w-3.5 h-3.5 text-blue-300/60" />
+                          <div>
+                            <p className="text-[10px] text-blue-300/50">Vehiculo</p>
+                            <p className="text-xs text-white font-medium">{route.license_plate}</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Cargo */}
+                    {route.cargo_description && (
+                      <div className="bg-white/5 rounded-xl p-3">
+                        <p className="text-[10px] text-blue-300/50 mb-1">Carga a entregar</p>
+                        <p className="text-xs text-white/70 leading-relaxed">{route.cargo_description}</p>
+                      </div>
+                    )}
+
+                    {/* Notes */}
+                    {route.notes && (
+                      <div className="bg-white/5 rounded-xl p-3">
+                        <p className="text-[10px] text-blue-300/50 mb-1">Notas</p>
+                        <p className="text-xs text-white/70">{route.notes}</p>
+                      </div>
+                    )}
+
+                    {/* Start route button */}
+                    <button
+                      onClick={() => handleStartRoute(route.id_route)}
+                      disabled={isStarting || !!activeRoute}
+                      className={`w-full py-3 font-semibold text-sm rounded-xl transition-all flex items-center justify-center gap-2 ${
+                        activeRoute
+                          ? 'bg-white/5 text-blue-300/40 cursor-not-allowed'
+                          : 'bg-gradient-to-r from-blue-600 to-cyan-500 text-white hover:from-blue-500 hover:to-cyan-400 shadow-lg shadow-cyan-500/20'
+                      }`}
+                    >
+                      {isStarting ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Iniciando...
+                        </>
+                      ) : activeRoute ? (
+                        'Completa la ruta activa primero'
+                      ) : (
+                        <>
+                          <Play className="w-4 h-4" />
+                          Iniciar esta Ruta
+                        </>
+                      )}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* No routes message */}
+      {!hasRoutes && (
+        <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-8 border border-white/10 mb-4 text-center">
+          <Route className="w-12 h-12 text-blue-300/30 mx-auto mb-3" />
+          <p className="text-white/60 text-sm font-medium mb-1">Sin rutas asignadas</p>
+          <p className="text-blue-300/40 text-xs">Cuando el planificador te asigne una ruta, aparecera aqui.</p>
         </div>
       )}
 

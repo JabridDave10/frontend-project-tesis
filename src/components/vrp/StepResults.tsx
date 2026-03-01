@@ -70,8 +70,8 @@ export function StepResults({
           cargo_weight: route.total_weight,
           cargo_volume: route.total_volume,
           cargo_description: cargoDesc,
-          estimated_distance: route.total_distance,
-          estimated_duration: route.total_duration,
+          estimated_distance: Math.round(route.total_distance * 100) / 100,
+          estimated_duration: Math.round(route.total_duration),
           status: 'pendiente',
           notes: `VRP ${result.algorithm_used}${result.applied_2opt ? ' +2opt' : ''} | ${route.stops.length} paradas`,
         })
@@ -181,7 +181,7 @@ export function StepResults({
       {optimizedRoutes.length > 0 && (
         <div>
           <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Mapa de Rutas</h3>
-          <OptimizedRouteMap routes={optimizedRoutes} />
+          <OptimizedRouteMap key={`vrp-map-${result.computation_time_ms}`} routes={optimizedRoutes} />
         </div>
       )}
 

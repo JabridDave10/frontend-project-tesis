@@ -39,10 +39,13 @@ export default function ConductorLoginPage() {
         withCredentials: true,
       })
 
-      const { driver, activeRoute } = driverRes.data
+      const { driver, activeRoute, pendingRoutes } = driverRes.data
       localStorage.setItem('driver', JSON.stringify(driver))
       if (activeRoute) {
         localStorage.setItem('activeRoute', JSON.stringify(activeRoute))
+      }
+      if (pendingRoutes) {
+        localStorage.setItem('pendingRoutes', JSON.stringify(pendingRoutes))
       }
 
       toast.success(`Bienvenido, ${driver.first_name}`)

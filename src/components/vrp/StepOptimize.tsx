@@ -89,6 +89,15 @@ export function StepOptimize({
     setLoadingFleet(false)
   }
 
+  // Normalize license_categories: backend raw SQL returns a comma-separated
+  // string (e.g. "B2,C2") instead of an array because TypeORM simple-array
+  // transformer only runs on repository methods, not dataSource.query().
+  const parseLicenses = (raw: unknown): string[] => {
+    if (Array.isArray(raw)) return raw
+    if (typeof raw === 'string' && raw.length > 0) return raw.split(',').map(s => s.trim())
+    return []
+  }
+
   const pairs = useMemo((): VehicleDriverPair[] => {
     const result: VehicleDriverPair[] = []
     const usedDrivers = new Set<number>()
@@ -100,7 +109,7 @@ export function StepOptimize({
     for (const vehicle of sorted) {
       const compatibleDriver = drivers.find(d => {
         if (usedDrivers.has(d.id_driver)) return false
-        return isDriverCompatible(d.license_categories || [], vehicle.vehicle_type)
+        return isDriverCompatible(parseLicenses(d.license_categories), vehicle.vehicle_type)
       })
 
       if (compatibleDriver) {
@@ -119,7 +128,7 @@ export function StepOptimize({
             first_name: compatibleDriver.first_name || '',
             last_name: compatibleDriver.last_name || '',
             phone: compatibleDriver.phone,
-            license_categories: compatibleDriver.license_categories || [],
+            license_categories: parseLicenses(compatibleDriver.license_categories),
           },
         })
         usedDrivers.add(compatibleDriver.id_driver)
