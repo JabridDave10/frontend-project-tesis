@@ -234,7 +234,7 @@ export const AddRouteView = () => {
                     <option value="">Sin asignar</option>
                     {drivers.map((driver) => (
                       <option key={driver.id_driver} value={driver.id_driver}>
-                        {driver.first_name} {driver.last_name} - {driver.license_type}
+                        {driver.first_name} {driver.last_name} - {Array.isArray(driver.license_categories) ? driver.license_categories.join(', ') : driver.license_categories || 'N/A'}
                       </option>
                     ))}
                   </select>

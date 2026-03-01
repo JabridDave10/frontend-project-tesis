@@ -73,16 +73,19 @@ const createAxiosInstance = (): AxiosInstance => {
       // Manejar error 401 - Sesión expirada
       if (error.response?.status === 401) {
         const currentPath = typeof window !== 'undefined' ? window.location.pathname : ''
-        
+
         // No redirigir si estamos en rutas de autenticación
-        if (!currentPath.includes('/auth/')) {
+        if (!currentPath.includes('/auth/') && !currentPath.includes('/conductor')) {
           console.error('Error 401 - Sesión expirada o token inválido')
-          
+
           // Limpiar datos del usuario
           if (typeof window !== 'undefined') {
             localStorage.removeItem('user')
-            // No necesitas limpiar 'token' porque no lo estás guardando en localStorage
-            
+            localStorage.removeItem('token')
+            localStorage.removeItem('access_token')
+            localStorage.removeItem('driver')
+            localStorage.removeItem('activeRoute')
+
             // Redirigir al login solo si no estamos ya ahí
             if (!currentPath.includes('/auth/login')) {
               window.location.href = '/auth/login'

@@ -25,6 +25,7 @@ export const DashboardHeader = ({
   const router = useRouter()
   const [isLoggingOut, setIsLoggingOut] = useState(false)
   const [userName, setUserName] = useState('')
+  const [userRole, setUserRole] = useState('Usuario')
   const userApi = new AxiosUserManagement()
 
   useEffect(() => {
@@ -34,6 +35,8 @@ export const DashboardHeader = ({
         try {
           const user = JSON.parse(userStr)
           setUserName(`${user.first_name || ''} ${user.last_name || ''}`.trim())
+          const roleLabels: Record<number, string> = { 1: 'Administrador', 2: 'Conductor', 3: 'Operador' }
+          setUserRole(roleLabels[user.id_role] || 'Usuario')
         } catch { /* ignore */ }
       }
     }
@@ -112,7 +115,7 @@ export const DashboardHeader = ({
           </div>
           <div className="hidden lg:flex flex-col">
             <span className="text-sm font-medium text-slate-800">{userName || 'Usuario'}</span>
-            <span className="text-[11px] text-slate-400">Administrador</span>
+            <span className="text-[11px] text-slate-400">{userRole}</span>
           </div>
           <button
             onClick={handleLogout}

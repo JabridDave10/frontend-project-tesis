@@ -1,207 +1,129 @@
-/**
- * Servicio para seguimiento GPS en tiempo real
- * Preparado para integración con WebSockets
- */
+import { io, Socket } from 'socket.io-client'
 
 export interface VehiclePosition {
-  id_vehicle: number
+  id_driver: number
+  id_vehicle?: number
   id_route?: number
   latitude: number
   longitude: number
-  speed?: number // en km/h
-  heading?: number // dirección en grados (0-360)
+  speed: number
+  heading: number
+  accuracy: number
+  status: string
   timestamp: string
-  status: 'en_ruta' | 'detenido' | 'entregando' | 'completado'
-}
-
-export interface RouteTracking {
-  id_route: number
-  vehicle_positions: VehiclePosition[]
-  current_stop_index: number // Índice de la parada actual
-  estimated_arrival?: string
-  progress_percentage: number // 0-100
+  first_name?: string
+  last_name?: string
+  license_plate?: string
+  vehicle_type?: string
+  route_code?: string
 }
 
 export class GPSTrackingService {
-  private ws: WebSocket | null = null
-  private reconnectAttempts = 0
-  private maxReconnectAttempts = 5
-  private reconnectDelay = 3000
+  private socket: Socket | null = null
+  private connected = false
 
-  /**
-   * Conectar a WebSocket para recibir actualizaciones GPS
-   */
-  connect(
-    onPositionUpdate: (position: VehiclePosition) => void,
-    onError?: (error: Event) => void
-  ) {
-    if (typeof window === 'undefined') return
+  connect(token: string): Socket {
+    if (this.socket?.connected) return this.socket
 
-    const wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:3000'
-    
-    try {
-      this.ws = new WebSocket(wsUrl)
+    const wsUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'
 
-      this.ws.onopen = () => {
-        console.log('✅ WebSocket conectado para seguimiento GPS')
-        this.reconnectAttempts = 0
-      }
+    this.socket = io(`${wsUrl}/gps`, {
+      auth: { token },
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 3000,
+    })
 
-      this.ws.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data)
-          if (data.type === 'vehicle_position' && data.position) {
-            onPositionUpdate(data.position as VehiclePosition)
-          }
-        } catch (error) {
-          console.error('Error al parsear mensaje WebSocket:', error)
-        }
-      }
+    this.socket.on('connect', () => {
+      console.log('GPS WebSocket connected')
+      this.connected = true
+    })
 
-      this.ws.onerror = (error) => {
-        console.error('Error en WebSocket:', error)
-        if (onError) {
-          onError(error)
-        }
-      }
+    this.socket.on('disconnect', () => {
+      console.log('GPS WebSocket disconnected')
+      this.connected = false
+    })
 
-      this.ws.onclose = () => {
-        console.log('WebSocket desconectado')
-        this.attemptReconnect(onPositionUpdate, onError)
-      }
-    } catch (error) {
-      console.error('Error al conectar WebSocket:', error)
-    }
+    this.socket.on('connect_error', (err) => {
+      console.error('GPS WebSocket connection error:', err.message)
+      this.connected = false
+    })
+
+    return this.socket
   }
 
-  /**
-   * Intentar reconectar WebSocket
-   */
-  private attemptReconnect(
-    onPositionUpdate: (position: VehiclePosition) => void,
-    onError?: (error: Event) => void
-  ) {
-    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      console.error('Máximo de intentos de reconexión alcanzado')
-      return
-    }
-
-    this.reconnectAttempts++
-    console.log(`Intentando reconectar... (${this.reconnectAttempts}/${this.maxReconnectAttempts})`)
-
-    setTimeout(() => {
-      this.connect(onPositionUpdate, onError)
-    }, this.reconnectDelay)
-  }
-
-  /**
-   * Desconectar WebSocket
-   */
   disconnect() {
-    if (this.ws) {
-      this.ws.close()
-      this.ws = null
+    if (this.socket) {
+      this.socket.disconnect()
+      this.socket = null
+      this.connected = false
     }
   }
 
-  /**
-   * Enviar posición GPS (desde la app móvil)
-   */
-  sendPosition(position: VehiclePosition) {
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      this.ws.send(
-        JSON.stringify({
-          type: 'gps_update',
-          position
-        })
+  subscribeToDashboard() {
+    this.socket?.emit('subscribe_dashboard')
+  }
+
+  registerDriver(driverId: number) {
+    this.socket?.emit('register_driver', { id_driver: driverId })
+  }
+
+  sendPosition(data: {
+    id_driver: number
+    latitude: number
+    longitude: number
+    speed?: number
+    heading?: number
+    accuracy?: number
+    status?: string
+    id_vehicle?: number
+    id_route?: number
+  }) {
+    this.socket?.emit('gps_update', data)
+  }
+
+  stopTracking(driverId: number) {
+    this.socket?.emit('stop_tracking', { id_driver: driverId })
+  }
+
+  onVehiclePosition(callback: (position: VehiclePosition) => void) {
+    this.socket?.on('vehicle_position', (data: any) => {
+      callback({
+        ...data,
+        timestamp: data.recorded_at || new Date().toISOString(),
+      })
+    })
+  }
+
+  onDriverOffline(callback: (data: { id_driver: number }) => void) {
+    this.socket?.on('driver_offline', callback)
+  }
+
+  onActiveDrivers(callback: (drivers: VehiclePosition[]) => void) {
+    this.socket?.on('active_drivers', (data: any[]) => {
+      callback(
+        data.map((d) => ({
+          ...d,
+          timestamp: d.recorded_at || new Date().toISOString(),
+        })),
       )
-    }
+    })
   }
 
-  /**
-   * Suscribirse a actualizaciones de un vehículo específico
-   */
-  subscribeToVehicle(vehicleId: number) {
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      this.ws.send(
-        JSON.stringify({
-          type: 'subscribe',
-          vehicle_id: vehicleId
-        })
-      )
-    }
+  onRegistered(callback: (data: { success: boolean; id_driver: number }) => void) {
+    this.socket?.on('registered', callback)
   }
 
-  /**
-   * Obtener posición actual de un vehículo (fallback si no hay WebSocket)
-   */
-  async getCurrentPosition(vehicleId: number): Promise<VehiclePosition | null> {
-    try {
-      // TODO: Implementar endpoint en backend para obtener posición actual
-      // Por ahora retornamos null
-      return null
-    } catch (error) {
-      console.error('Error al obtener posición actual:', error)
-      return null
-    }
+  onTrackingStopped(callback: (data: { success: boolean }) => void) {
+    this.socket?.on('tracking_stopped', callback)
   }
 
-  /**
-   * Calcular progreso de una ruta
-   */
-  calculateRouteProgress(
-    currentPosition: VehiclePosition,
-    routeCoordinates: [number, number][]
-  ): number {
-    if (routeCoordinates.length === 0) return 0
-
-    // Encontrar el punto más cercano en la ruta
-    let minDistance = Infinity
-    let closestIndex = 0
-
-    for (let i = 0; i < routeCoordinates.length; i++) {
-      const [lat, lng] = routeCoordinates[i]
-      const distance = this.calculateDistance(
-        currentPosition.latitude,
-        currentPosition.longitude,
-        lat,
-        lng
-      )
-
-      if (distance < minDistance) {
-        minDistance = distance
-        closestIndex = i
-      }
-    }
-
-    // Calcular porcentaje de progreso
-    return Math.round((closestIndex / routeCoordinates.length) * 100)
+  isConnected(): boolean {
+    return this.connected
   }
 
-  /**
-   * Calcular distancia entre dos puntos (fórmula de Haversine)
-   */
-  private calculateDistance(
-    lat1: number,
-    lon1: number,
-    lat2: number,
-    lon2: number
-  ): number {
-    const R = 6371 // Radio de la Tierra en km
-    const dLat = this.toRad(lat2 - lat1)
-    const dLon = this.toRad(lon2 - lon1)
-    const a =
-      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos(this.toRad(lat1)) *
-        Math.cos(this.toRad(lat2)) *
-        Math.sin(dLon / 2) *
-        Math.sin(dLon / 2)
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-    return R * c
-  }
-
-  private toRad(degrees: number): number {
-    return (degrees * Math.PI) / 180
+  getSocket(): Socket | null {
+    return this.socket
   }
 }
-

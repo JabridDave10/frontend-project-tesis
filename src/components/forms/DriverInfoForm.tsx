@@ -6,6 +6,7 @@ import { LicenseInfoSection } from './LicenseInfoSection'
 import { MedicalInfoSection } from './MedicalInfoSection'
 import { EmergencyContactSection } from './EmergencyContactSection'
 import { CreateDriverDto, LicenseCategory, BloodType } from '@/types/driverTypes'
+import { FileText, ArrowLeft, ArrowRight } from 'lucide-react'
 
 interface DriverInfoFormProps {
   data: Omit<CreateDriverDto, 'id_user'>
@@ -30,8 +31,8 @@ export const DriverInfoForm = ({
 }: DriverInfoFormProps) => {
   return (
     <form onSubmit={onSubmit} className="space-y-6">
-      {/* Tarjeta: Información de Licencia */}
-      <div className="bg-blue-50 border border-blue-200 rounded-xl p-6 shadow-sm">
+      {/* License Info Section */}
+      <div className="bg-white/60 backdrop-blur-sm border border-slate-200/60 rounded-2xl p-6 shadow-sm">
         <LicenseInfoSection
           data={{
             license_number: data.license_number,
@@ -44,20 +45,19 @@ export const DriverInfoForm = ({
           userIdentification={userIdentification}
         />
 
-        {/* Foto de Licencia dentro de la misma tarjeta */}
-        <div className="mt-6 pt-6 border-t border-blue-300">
+        <div className="mt-6 pt-6 border-t border-slate-200/60">
           <FileUpload
-            label="Foto de la Licencia de Conducción"
+            label="Foto de la Licencia de Conduccion"
             accept="image/jpeg,image/jpg,image/png,application/pdf"
             maxSizeMB={5}
             onFileSelect={onLicensePhotoChange}
-            helperText="Formato: JPG, PNG, PDF. Tamaño máximo: 5MB. Asegúrese de que la foto sea legible."
+            helperText="Formato: JPG, PNG, PDF. Tamano maximo: 5MB. Asegurese de que la foto sea legible."
           />
         </div>
       </div>
 
-      {/* Tarjeta: Información Médica */}
-      <div className="bg-green-50 border border-green-200 rounded-xl p-6 shadow-sm">
+      {/* Medical Info Section */}
+      <div className="bg-white/60 backdrop-blur-sm border border-slate-200/60 rounded-2xl p-6 shadow-sm">
         <MedicalInfoSection
           data={{
             blood_type: data.blood_type,
@@ -69,8 +69,8 @@ export const DriverInfoForm = ({
         />
       </div>
 
-      {/* Tarjeta: Contacto de Emergencia */}
-      <div className="bg-red-50 border border-red-200 rounded-xl p-6 shadow-sm">
+      {/* Emergency Contact Section */}
+      <div className="bg-white/60 backdrop-blur-sm border border-slate-200/60 rounded-2xl p-6 shadow-sm">
         <EmergencyContactSection
           data={{
             emergency_contact_name: data.emergency_contact_name,
@@ -82,51 +82,54 @@ export const DriverInfoForm = ({
         />
       </div>
 
-      {/* Tarjeta: Notas Adicionales */}
-      <div className="bg-gray-50 border border-gray-200 rounded-xl p-6 shadow-sm">
+      {/* Notes Section */}
+      <div className="bg-white/60 backdrop-blur-sm border border-slate-200/60 rounded-2xl p-6 shadow-sm">
         <div className="space-y-2">
           <div className="mb-4">
-            <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
-              <span className="text-2xl">📝</span>
-              Notas Adicionales
-            </h3>
-            <p className="text-sm text-gray-600 mt-1">
-              Observaciones o información adicional sobre el conductor
-            </p>
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-600 to-cyan-500 flex items-center justify-center">
+                <FileText className="w-4 h-4 text-white" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-slate-900">Notas Adicionales</h3>
+                <p className="text-sm text-slate-500">Observaciones o informacion adicional sobre el conductor</p>
+              </div>
+            </div>
           </div>
 
           <textarea
             name="notes"
             value={data.notes || ''}
             onChange={(e) => onDataChange('notes', e.target.value)}
-            placeholder="Ej: Conductor con amplia experiencia en rutas nacionales, buen desempeño en cargas refrigeradas..."
+            placeholder="Ej: Conductor con amplia experiencia en rutas nacionales, buen desempeno en cargas refrigeradas..."
             rows={4}
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all resize-none bg-white"
+            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 outline-none transition-all resize-none"
           />
-          <p className="text-xs text-gray-500">
-            Opcional: Información adicional que considere relevante
+          <p className="text-xs text-slate-400">
+            Opcional: Informacion adicional que considere relevante
           </p>
         </div>
       </div>
 
-      {/* Botones de Acción */}
-      <div className="flex gap-4 pt-6">
-        <Button
+      {/* Action Buttons */}
+      <div className="flex gap-4 pt-4">
+        <button
           type="button"
-          variant="secondary"
           onClick={onBack}
-          className="flex-1"
           disabled={isLoading}
+          className="flex-1 py-3 px-6 bg-slate-100 text-slate-700 font-medium rounded-xl hover:bg-slate-200 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
         >
-          ← Anterior
-        </Button>
-        <Button
+          <ArrowLeft className="w-4 h-4" /> Anterior
+        </button>
+        <button
           type="submit"
           disabled={isLoading}
-          className="flex-1"
+          className="flex-1 py-3 px-6 bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-semibold rounded-xl shadow-lg shadow-blue-500/20 hover:from-blue-500 hover:to-cyan-400 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
         >
-          {isLoading ? 'Creando Conductor...' : 'Crear Conductor →'}
-        </Button>
+          {isLoading ? 'Creando Conductor...' : (
+            <>Crear Conductor <ArrowRight className="w-4 h-4" /></>
+          )}
+        </button>
       </div>
     </form>
   )

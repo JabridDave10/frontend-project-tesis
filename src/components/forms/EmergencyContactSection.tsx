@@ -1,6 +1,7 @@
 'use client'
 
 import { Input } from '@/components/ui/input'
+import { Phone } from 'lucide-react'
 
 interface EmergencyContactData {
   emergency_contact_name: string
@@ -19,7 +20,6 @@ export const EmergencyContactSection = ({
   onChange
 }: EmergencyContactSectionProps) => {
   const formatPhone = (value: string) => {
-    // Solo números, máximo 10 dígitos
     return value.replace(/\D/g, '').slice(0, 10)
   }
 
@@ -30,18 +30,20 @@ export const EmergencyContactSection = ({
   return (
     <div className="space-y-4">
       <div className="mb-6">
-        <h3 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-          <span className="text-3xl">🚨</span>
-          Contacto de Emergencia
-        </h3>
-        <p className="text-sm text-gray-600 mt-2 ml-11">
-          Persona a contactar en caso de emergencia
-        </p>
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-600 to-cyan-500 flex items-center justify-center">
+            <Phone className="w-4 h-4 text-white" />
+          </div>
+          <div>
+            <h3 className="text-lg font-semibold text-slate-900">Contacto de Emergencia</h3>
+            <p className="text-sm text-slate-500">Persona a contactar en caso de emergencia</p>
+          </div>
+        </div>
       </div>
 
-      {/* Nombre del Contacto */}
+      {/* Contact Name */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
+        <label className="block text-sm font-medium text-slate-700 mb-2">
           Nombre Completo <span className="text-red-500">*</span>
         </label>
         <Input
@@ -49,21 +51,22 @@ export const EmergencyContactSection = ({
           name="emergency_contact_name"
           value={data.emergency_contact_name}
           onChange={(e) => onChange('emergency_contact_name', e.target.value)}
-          placeholder="Ej: María López Pérez"
+          placeholder="Ej: Maria Lopez Perez"
           required
+          className="bg-slate-50 rounded-xl border-slate-200 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all"
         />
       </div>
 
-      {/* Parentesco */}
+      {/* Relationship */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
+        <label className="block text-sm font-medium text-slate-700 mb-2">
           Parentesco <span className="text-red-500">*</span>
         </label>
         <select
           name="emergency_contact_relationship"
           value={data.emergency_contact_relationship}
           onChange={(e) => onChange('emergency_contact_relationship', e.target.value)}
-          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
+          className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 outline-none transition-all"
           required
         >
           <option value="">Seleccione el parentesco</option>
@@ -78,10 +81,10 @@ export const EmergencyContactSection = ({
         </select>
       </div>
 
-      {/* Teléfono */}
+      {/* Phone */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          Teléfono / Celular <span className="text-red-500">*</span>
+        <label className="block text-sm font-medium text-slate-700 mb-2">
+          Telefono / Celular <span className="text-red-500">*</span>
         </label>
         <Input
           type="tel"
@@ -95,42 +98,44 @@ export const EmergencyContactSection = ({
           required
           minLength={10}
           maxLength={10}
+          className="bg-slate-50 rounded-xl border-slate-200 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all"
         />
-        <p className="text-xs text-gray-500 mt-1">
-          Exactamente 10 dígitos sin espacios ni guiones (solo números)
+        <p className="text-xs text-slate-400 mt-1">
+          Exactamente 10 digitos sin espacios ni guiones (solo numeros)
         </p>
         {data.emergency_contact_phone &&
 !isValidPhone(data.emergency_contact_phone) && (
-          <p className="text-xs text-red-600 mt-1">
-            ⚠️ El teléfono debe tener exactamente 10 dígitos
+          <p className="text-xs text-red-500 mt-1">
+            El telefono debe tener exactamente 10 digitos
           </p>
         )}
       </div>
 
-      {/* Separador */}
-      <div className="border-t border-gray-100 my-4"></div>
+      {/* Separator */}
+      <div className="border-t border-slate-200/60 my-4"></div>
 
-      {/* Dirección del Conductor */}
+      {/* Driver Address */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          Dirección de Residencia del Conductor (Opcional)
+        <label className="block text-sm font-medium text-slate-700 mb-2">
+          Direccion de Residencia del Conductor (Opcional)
         </label>
         <Input
           type="text"
           name="address"
           value={data.address}
           onChange={(e) => onChange('address', e.target.value)}
-          placeholder="Ej: Calle 123 #45-67, Bogotá"
+          placeholder="Ej: Calle 123 #45-67, Bogota"
+          className="bg-slate-50 rounded-xl border-slate-200 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all"
         />
-        <p className="text-xs text-gray-500 mt-1">
-          Dirección completa donde reside el conductor
+        <p className="text-xs text-slate-400 mt-1">
+          Direccion completa donde reside el conductor
         </p>
       </div>
 
-      {/* Info adicional */}
-      <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-        <p className="text-xs text-blue-800">
-          ℹ️ Esta información es crucial en caso de emergencias. Asegúrese de que los datos sean correctos y estén actualizados.
+      {/* Info box */}
+      <div className="p-3 bg-blue-50/60 border border-blue-200/40 rounded-xl">
+        <p className="text-xs text-blue-700">
+          Esta informacion es crucial en caso de emergencias. Asegurese de que los datos sean correctos y esten actualizados.
         </p>
       </div>
     </div>

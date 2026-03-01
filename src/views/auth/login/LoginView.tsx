@@ -33,7 +33,16 @@ export const LoginView = () => {
     try {
       const result = await userApi.loginUser(formData)
       if (result) {
-        router.push('/dashboard')
+        const userRole = Number(result.user?.id_role)
+        if (userRole === 2) {
+          // Save token for WebSocket auth in conductor app
+          if (result.access_token) {
+            localStorage.setItem('access_token', result.access_token)
+          }
+          router.push('/conductor/tracking')
+        } else {
+          router.push('/dashboard')
+        }
       }
     } catch (error) {
       console.error('Error en el login:', error)
