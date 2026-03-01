@@ -5,31 +5,33 @@ import { RouteOptimizationService } from '@/services/routeOptimizationService'
 import { VehiclesService } from '@/services/vehiclesService'
 import { DriversService } from '@/services/driversService'
 import { ProductsService } from '@/services/productsService'
-import { CargoService } from '@/services/cargoService'
 import { RoutesService } from '@/services/routesService'
+import { warehouseService } from '@/services/warehouseService'
 import { AxiosClients } from '@/services/axiosClients'
 import { AxiosSales } from '@/services/axiosSales'
 import { OptimizedRoute } from '@/types/cargoTypes'
 import { Vehicle } from '@/types/vehicleTypes'
 import { Driver } from '@/types/driverTypes'
-import { Product } from '@/types/productTypes'
+import { Product, Warehouse } from '@/types/productTypes'
 import { Client } from '@/types/clientTypes'
 import { Sale } from '@/types/saleTypes'
-import { Button } from '@/components/ui/button'
-import { Card } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { AddressAutocomplete } from '@/components/ui/address-autocomplete'
 import dynamic from 'next/dynamic'
-import { MapPin, Package, Truck, Route, Plus, X, Loader2, ShoppingCart, CheckCircle2 } from 'lucide-react'
+import {
+  MapPin, Package, Truck, Route, Loader2, ShoppingCart, CheckCircle2,
+  Warehouse as WarehouseIcon, ChevronRight, ChevronLeft, Save, RotateCcw,
+  Weight, Box, DollarSign, Clock, Navigation
+} from 'lucide-react'
 import { toast } from 'react-toastify'
 
-// Importar el mapa de forma dinámica
 const OptimizedRouteMap = dynamic(() => import('@/components/map/OptimizedRouteMap'), {
   ssr: false,
   loading: () => (
-    <div className="w-full h-[600px] rounded-2xl overflow-hidden shadow-lg bg-gray-200 flex items-center justify-center">
-      <p className="text-gray-500">Cargando mapa...</p>
+    <div className="w-full h-[600px] rounded-2xl overflow-hidden bg-slate-100 flex items-center justify-center">
+      <div className="text-center">
+        <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+        <p className="text-slate-500 text-sm">Cargando mapa...</p>
+      </div>
     </div>
   )
 })
@@ -41,15 +43,23 @@ interface SaleWithClient extends Sale {
   destination_longitude?: number
 }
 
+const formatCurrency = (amount: number) =>
+  new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(amount)
+
 export const PlanRoutesView = () => {
   const [step, setStep] = useState<'sales' | 'vehicles' | 'optimize' | 'results'>('sales')
   const [isLoading, setIsLoading] = useState(false)
   const [isOptimizing, setIsOptimizing] = useState(false)
 
-  // Datos del formulario
+  // Origen (bodega)
+  const [warehouses, setWarehouses] = useState<Warehouse[]>([])
+  const [selectedWarehouseId, setSelectedWarehouseId] = useState<number>(0)
   const [originAddress, setOriginAddress] = useState('')
-  const [originLat, setOriginLat] = useState<number>(4.711) // Bogotá por defecto
-  const [originLng, setOriginLng] = useState<number>(-74.072)
+  const [originLat, setOriginLat] = useState<number>(0)
+  const [originLng, setOriginLng] = useState<number>(0)
+  const [isGeocodingOrigin, setIsGeocodingOrigin] = useState(false)
+
+  // Selecciones
   const [selectedSales, setSelectedSales] = useState<number[]>([])
   const [selectedVehicles, setSelectedVehicles] = useState<number[]>([])
 
@@ -67,7 +77,6 @@ export const PlanRoutesView = () => {
   const vehiclesService = new VehiclesService()
   const driversService = new DriversService()
   const productsService = new ProductsService()
-  const cargoService = new CargoService()
   const routesService = new RoutesService()
   const clientsService = new AxiosClients()
   const salesService = new AxiosSales()
@@ -79,56 +88,43 @@ export const PlanRoutesView = () => {
   const loadInitialData = async () => {
     setIsLoading(true)
     try {
-      const [salesData, vehiclesData, driversData, clientsData, productsData] = await Promise.all([
+      const [salesData, vehiclesData, driversData, clientsData, productsData, warehousesData] = await Promise.all([
         salesService.getAllSales(),
         vehiclesService.getAvailableVehicles(),
         driversService.getAvailableDrivers(),
         clientsService.getAllClients(),
-        productsService.getAllProducts()
+        productsService.getAllProducts(),
+        warehouseService.getAllWarehouses()
       ])
-      
-      // Filtrar ventas pendientes (sin ruta asignada o con status pendiente)
+
       const pendingSales = salesData.filter(sale => !sale.id_route && (sale.status === 'pendiente' || !sale.status))
-      
-      // Enriquecer ventas con información del cliente
+
       const salesWithClients: SaleWithClient[] = pendingSales.map(sale => {
         const client = clientsData.find(c => c.id_client === sale.id_client)
         return {
           ...sale,
           client,
           destination_address: client?.address,
-          destination_latitude: undefined, // Se obtendrá con geocodificación
+          destination_latitude: undefined,
           destination_longitude: undefined
         }
       })
-      
+
       setSales(salesWithClients)
       setProducts(productsData)
-      
-      // Si no hay vehículos disponibles, intentar obtener todos los vehículos
+      setWarehouses(warehousesData)
+
       let finalVehicles = vehiclesData
       if (vehiclesData.length === 0) {
-        console.warn('No hay vehículos disponibles, obteniendo todos los vehículos')
         finalVehicles = await vehiclesService.getAllVehicles()
         if (finalVehicles.length === 0) {
-          toast.warning('No hay vehículos registrados. Por favor, agrega vehículos primero.')
-        } else {
-          console.log(`Se encontraron ${finalVehicles.length} vehículos (no todos están disponibles)`)
+          toast.warning('No hay vehiculos registrados. Agrega vehiculos primero.')
         }
       }
       setVehicles(finalVehicles)
-      
       setDrivers(driversData)
       setClients(clientsData)
-      
-      console.log('Datos cargados:', {
-        sales: salesWithClients.length,
-        vehicles: finalVehicles.length,
-        drivers: driversData.length,
-        clients: clientsData.length,
-        products: productsData.length
-      })
-      
+
       if (salesWithClients.length === 0) {
         toast.info('No hay ventas pendientes para planificar rutas')
       }
@@ -140,100 +136,100 @@ export const PlanRoutesView = () => {
     }
   }
 
-  const handleSaleToggle = (saleId: number) => {
-    if (selectedSales.includes(saleId)) {
-      setSelectedSales(selectedSales.filter(id => id !== saleId))
-    } else {
-      setSelectedSales([...selectedSales, saleId])
+  // Geocodificar dirección de la bodega seleccionada
+  const handleWarehouseSelect = async (warehouseId: number) => {
+    setSelectedWarehouseId(warehouseId)
+    if (warehouseId === 0) {
+      setOriginAddress('')
+      setOriginLat(0)
+      setOriginLng(0)
+      return
     }
+
+    const warehouse = warehouses.find(w => w.id_warehouse === warehouseId)
+    if (!warehouse) return
+
+    setOriginAddress(warehouse.address)
+    setIsGeocodingOrigin(true)
+
+    try {
+      const coords = await geocodeAddress(warehouse.address)
+      if (coords) {
+        setOriginLat(coords.lat)
+        setOriginLng(coords.lng)
+      } else {
+        toast.warning('No se pudieron obtener coordenadas para la bodega. Verifica la direccion.')
+        setOriginLat(0)
+        setOriginLng(0)
+      }
+    } finally {
+      setIsGeocodingOrigin(false)
+    }
+  }
+
+  const handleSaleToggle = (saleId: number) => {
+    setSelectedSales(prev =>
+      prev.includes(saleId) ? prev.filter(id => id !== saleId) : [...prev, saleId]
+    )
   }
 
   const handleVehicleToggle = (vehicleId: number) => {
-    if (selectedVehicles.includes(vehicleId)) {
-      setSelectedVehicles(selectedVehicles.filter(id => id !== vehicleId))
-    } else {
-      setSelectedVehicles([...selectedVehicles, vehicleId])
-    }
+    setSelectedVehicles(prev =>
+      prev.includes(vehicleId) ? prev.filter(id => id !== vehicleId) : [...prev, vehicleId]
+    )
   }
 
-  // Calcular peso total de las ventas seleccionadas
   const calculateTotalWeight = (): number => {
     const selectedSalesData = sales.filter(s => selectedSales.includes(s.id_sale))
     let totalWeight = 0
-    
     selectedSalesData.forEach(sale => {
       if (sale.details) {
         sale.details.forEach(detail => {
           const product = products.find(p => p.id_product === detail.id_product)
-          if (product && product.weight_per_unit) {
-            totalWeight += product.weight_per_unit * detail.quantity
-          }
+          if (product && product.weight_per_unit) totalWeight += product.weight_per_unit * detail.quantity
         })
       }
     })
-    
     return totalWeight
   }
 
-  // Calcular volumen total de las ventas seleccionadas
   const calculateTotalVolume = (): number => {
     const selectedSalesData = sales.filter(s => selectedSales.includes(s.id_sale))
     let totalVolume = 0
-    
     selectedSalesData.forEach(sale => {
       if (sale.details) {
         sale.details.forEach(detail => {
           const product = products.find(p => p.id_product === detail.id_product)
-          if (product && product.volume_per_unit) {
-            totalVolume += product.volume_per_unit * detail.quantity
-          }
+          if (product && product.volume_per_unit) totalVolume += product.volume_per_unit * detail.quantity
         })
       }
     })
-    
     return totalVolume
   }
 
-  // Función auxiliar para geocodificar una dirección
   const geocodeAddress = async (address: string): Promise<{ lat: number; lng: number } | null> => {
     try {
-      const searchQuery = `${address}, Bogotá, Colombia`
+      const searchQuery = `${address}, Colombia`
       const viewbox = '-74.3,4.4,-73.9,4.9'
       const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=1&addressdetails=1&viewbox=${viewbox}&bounded=0&countrycodes=co`
-      
-      const response = await fetch(url, {
-        headers: {
-          'User-Agent': 'RoutePlanningApp/1.0'
-        }
-      })
+      const response = await fetch(url, { headers: { 'User-Agent': 'RoutePlanningApp/1.0' } })
       const data = await response.json()
-      
       if (data && data.length > 0) {
-        return {
-          lat: parseFloat(data[0].lat),
-          lng: parseFloat(data[0].lon)
-        }
+        return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) }
       }
       return null
     } catch (error) {
-      console.error('Error al geocodificar dirección:', error)
+      console.error('Error al geocodificar direccion:', error)
       return null
     }
   }
 
   const handleOptimize = async () => {
-    if (selectedSales.length === 0) {
-      toast.error('Debes seleccionar al menos una venta')
-      return
-    }
-
-    if (selectedVehicles.length === 0) {
-      toast.error('Debes seleccionar al menos un vehículo')
-      return
-    }
-
-    if (!originAddress) {
-      toast.error('Debes especificar la dirección de origen')
+    if (selectedSales.length === 0) { toast.error('Selecciona al menos una venta'); return }
+    if (selectedVehicles.length === 0) { toast.error('Selecciona al menos un vehiculo'); return }
+    if (!selectedWarehouseId) { toast.error('Selecciona una bodega de origen'); return }
+    if (!originLat || !originLng) {
+      toast.error('La bodega seleccionada no tiene coordenadas validas. Verifica la direccion.')
       return
     }
 
@@ -241,62 +237,38 @@ export const PlanRoutesView = () => {
     setStep('optimize')
 
     try {
-      // Verificar que el origen tenga coordenadas
-      let originLatFinal = originLat
-      let originLngFinal = originLng
-      if (!originLat || !originLng) {
-        toast.error('La dirección de origen debe tener coordenadas válidas. Por favor, selecciona una dirección de la lista de sugerencias.')
-        setIsOptimizing(false)
-        setStep('vehicles')
-        return
-      }
-
-      // Obtener las ventas seleccionadas
       const selectedSalesData = sales.filter(s => selectedSales.includes(s.id_sale))
-      
-      // Geocodificar direcciones de las ventas seleccionadas
+
       toast.info('Obteniendo coordenadas de las direcciones...')
       const salesWithCoords = await Promise.all(
         selectedSalesData.map(async (sale) => {
           if (!sale.destination_address) {
-            toast.warning(`La venta ${sale.sale_number || sale.id_sale} no tiene dirección de cliente`)
+            toast.warning(`La venta ${sale.sale_number || sale.id_sale} no tiene direccion de cliente`)
             return null
           }
-          
-          // Si ya tiene coordenadas, usarlas
-          if (sale.destination_latitude && sale.destination_longitude) {
-            return sale
-          }
-          
-          // Si no, geocodificar
+          if (sale.destination_latitude && sale.destination_longitude) return sale
           const coords = await geocodeAddress(sale.destination_address)
           if (coords) {
-            return {
-              ...sale,
-              destination_latitude: coords.lat,
-              destination_longitude: coords.lng
-            }
+            return { ...sale, destination_latitude: coords.lat, destination_longitude: coords.lng }
           }
-          
-          toast.warning(`No se pudieron obtener coordenadas para la dirección: ${sale.destination_address}`)
+          toast.warning(`No se obtuvieron coordenadas para: ${sale.destination_address}`)
           return null
         })
       )
 
-      // Filtrar ventas con coordenadas válidas
-      const validSales = salesWithCoords.filter((s): s is SaleWithClient => s !== null && s.destination_latitude !== undefined && s.destination_longitude !== undefined)
+      const validSales = salesWithCoords.filter(
+        (s): s is SaleWithClient => s !== null && s.destination_latitude !== undefined && s.destination_longitude !== undefined
+      )
 
       if (validSales.length === 0) {
-        toast.error('No se pudieron obtener coordenadas válidas para ninguna venta. Verifica que los clientes tengan direcciones válidas.')
+        toast.error('No se obtuvieron coordenadas validas para ninguna venta.')
         setIsOptimizing(false)
         setStep('sales')
         return
       }
 
-      // Crear cargas para cada venta
       const now = new Date().toISOString()
-      const cargos = validSales.map((sale, index) => {
-        // Calcular peso y volumen de los productos de la venta
+      const cargos = validSales.map((sale) => {
         let totalWeight = 0
         let totalVolume = 0
         const productDescriptions: string[] = []
@@ -305,17 +277,15 @@ export const PlanRoutesView = () => {
           sale.details.forEach(detail => {
             const product = products.find(p => p.id_product === detail.id_product)
             if (product) {
-              const weight = (product.weight_per_unit || 0) * detail.quantity
-              const volume = (product.volume_per_unit || 0) * detail.quantity
-              totalWeight += weight
-              totalVolume += volume
+              totalWeight += (product.weight_per_unit || 0) * detail.quantity
+              totalVolume += (product.volume_per_unit || 0) * detail.quantity
               productDescriptions.push(`${product.name} (${detail.quantity})`)
             }
           })
         }
 
         return {
-          id_cargo: sale.id_sale, // Usar el ID de la venta como ID de cargo
+          id_cargo: sale.id_sale,
           id_company: sale.id_company,
           description: `Venta ${sale.sale_number || sale.id_sale}: ${productDescriptions.join(', ')}`,
           weight: totalWeight,
@@ -332,58 +302,26 @@ export const PlanRoutesView = () => {
         }
       })
 
-      // Filtrar vehículos seleccionados
       const selectedVehiclesData = vehicles.filter(v => selectedVehicles.includes(v.id_vehicle))
-      
-      console.log('=== DATOS PARA OPTIMIZACIÓN ===')
-      console.log('- Cargos:', cargos.length)
-      cargos.forEach((cargo, idx) => {
-        console.log(`  Cargo ${idx + 1}: peso=${cargo.weight}kg, volumen=${cargo.volume}L, destino=(${cargo.destination_latitude}, ${cargo.destination_longitude})`)
-      })
-      console.log('- Vehículos seleccionados:', selectedVehiclesData.length)
-      selectedVehiclesData.forEach((v, idx) => {
-        console.log(`  Vehículo ${idx + 1}: ${v.license_plate}, tipo=${v.vehicle_type}, capacidad=${v.weight_capacity}kg, status=${v.status}`)
-      })
-      console.log('- Conductores:', drivers.length)
-      console.log('- Origen:', { lat: originLatFinal, lng: originLngFinal, address: originAddress })
 
-      // Validar que haya cargos válidos
       if (cargos.length === 0) {
-        toast.error('No hay cargos válidos para optimizar. Verifica que las ventas tengan direcciones válidas.')
+        toast.error('No hay cargos validos para optimizar.')
         setIsOptimizing(false)
         setStep('sales')
         return
       }
 
-      // Validar que haya vehículos seleccionados
-      if (selectedVehiclesData.length === 0) {
-        toast.error('No hay vehículos seleccionados disponibles.')
-        setIsOptimizing(false)
-        setStep('vehicles')
-        return
-      }
-
-      // Optimizar rutas
       const optimized = await routeOptimizationService.assignCargosToVehicles(
         cargos,
         selectedVehiclesData,
         drivers,
-        {
-          lat: originLatFinal,
-          lng: originLngFinal,
-          address: originAddress
-        }
+        { lat: originLat, lng: originLng, address: originAddress }
       )
 
       if (optimized.length === 0) {
-        console.error('❌ No se generaron rutas optimizadas')
-        const totalWeight = cargos.reduce((sum, c) => sum + c.weight, 0)
         const maxCapacity = selectedVehiclesData.reduce((max, v) => Math.max(max, v.weight_capacity), 0)
         toast.error(
-          `No se pudieron generar rutas. Verifica:
-          - Los vehículos tienen capacidad suficiente (capacidad máxima: ${maxCapacity}kg)
-          - Las ventas tienen direcciones válidas con coordenadas
-          - Los vehículos están disponibles`,
+          `No se generaron rutas. Verifica capacidad (max: ${maxCapacity}kg), direcciones y disponibilidad.`,
           { autoClose: 5000 }
         )
         setIsOptimizing(false)
@@ -405,12 +343,8 @@ export const PlanRoutesView = () => {
   const handleSaveRoutes = async () => {
     setIsLoading(true)
     try {
-      // Crear un mapa de id_cargo (que es id_sale) a id_route
-      const saleToRouteMap = new Map<number, number>()
-      
       for (const route of optimizedRoutes) {
-        // Crear la ruta en el backend
-        const createdRoute = await routesService.createRoute({
+        await routesService.createRoute({
           route_code: route.route_code,
           id_driver: route.id_driver === 0 ? undefined : route.id_driver,
           id_vehicle: route.id_vehicle,
@@ -427,27 +361,13 @@ export const PlanRoutesView = () => {
           estimated_distance: route.total_distance,
           estimated_duration: route.total_duration
         })
-        
-        // Mapear cada venta (cargo) a la ruta creada
-        if (createdRoute && createdRoute.id_route) {
-          route.assignments.forEach(assignment => {
-            // El id_cargo es el id_sale
-            saleToRouteMap.set(assignment.cargo.id_cargo, createdRoute.id_route!)
-          })
-        }
       }
-      
-      // TODO: Actualizar las ventas con el id_route asignado
-      // Esto requeriría un método en el servicio de ventas para actualizar el id_route
-      // Por ahora solo guardamos las rutas
-      
+
       toast.success('Rutas guardadas exitosamente')
-      // Resetear formulario
       setSelectedSales([])
       setSelectedVehicles([])
       setOptimizedRoutes([])
       setStep('sales')
-      // Recargar datos para actualizar la lista de ventas
       await loadInitialData()
     } catch (error) {
       console.error('Error al guardar rutas:', error)
@@ -457,42 +377,56 @@ export const PlanRoutesView = () => {
     }
   }
 
+  const steps = ['sales', 'vehicles', 'optimize', 'results'] as const
+  const stepLabels = ['Ventas', 'Vehiculos', 'Optimizando', 'Resultados']
+  const stepIcons = [ShoppingCart, Truck, Loader2, Route]
+  const currentStepIndex = steps.indexOf(step)
+
+  const selectedSalesTotal = sales
+    .filter(s => selectedSales.includes(s.id_sale))
+    .reduce((sum, sale) => sum + (Number(sale.total) || 0), 0)
+
+  const selectedWarehouse = warehouses.find(w => w.id_warehouse === selectedWarehouseId)
+
   return (
-    <div className="p-8 space-y-6">
-      <div className="bg-white rounded-lg shadow-sm p-6">
-        <h1 className="text-2xl font-bold text-gray-800 mb-2">Planificar Rutas</h1>
-        <p className="text-gray-600">Optimiza la distribución de carga entre vehículos</p>
+    <div className="p-8 min-h-screen">
+      {/* Header */}
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-slate-800">Planificar Rutas</h1>
+        <p className="text-slate-500 text-sm mt-1">Optimiza la distribucion de carga entre vehiculos</p>
       </div>
 
-      {/* Pasos */}
-      <div className="bg-white rounded-lg shadow-sm p-6">
-        <div className="flex items-center justify-between mb-6">
-          {['sales', 'vehicles', 'optimize', 'results'].map((s, index) => {
-            const stepLabels = ['Ventas', 'Vehículos', 'Optimizando', 'Resultados']
+      {/* Stepper */}
+      <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-slate-200/60 shadow-sm p-6 mb-6">
+        <div className="flex items-center justify-between">
+          {steps.map((s, index) => {
+            const Icon = stepIcons[index]
+            const isActive = step === s
+            const isCompleted = currentStepIndex > index
             return (
               <div key={s} className="flex items-center flex-1">
                 <div className="flex flex-col items-center flex-1">
                   <div
-                    className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold ${
-                      step === s
-                        ? 'bg-blue-600 text-white'
-                        : ['sales', 'vehicles', 'optimize', 'results'].indexOf(step) > index
-                        ? 'bg-green-500 text-white'
-                        : 'bg-gray-200 text-gray-600'
+                    className={`w-11 h-11 rounded-xl flex items-center justify-center font-semibold transition-all ${
+                      isActive
+                        ? 'bg-gradient-to-r from-blue-600 to-cyan-500 text-white shadow-md shadow-blue-500/25'
+                        : isCompleted
+                        ? 'bg-emerald-100 text-emerald-600 border border-emerald-200'
+                        : 'bg-slate-100 text-slate-400 border border-slate-200'
                     }`}
                   >
-                    {index + 1}
+                    {isCompleted ? (
+                      <CheckCircle2 className="w-5 h-5" />
+                    ) : (
+                      <Icon className={`w-5 h-5 ${isActive && s === 'optimize' ? 'animate-spin' : ''}`} />
+                    )}
                   </div>
-                  <span className="text-xs text-gray-600 mt-1">{stepLabels[index]}</span>
+                  <span className={`text-xs mt-1.5 font-medium ${isActive ? 'text-blue-600' : isCompleted ? 'text-emerald-600' : 'text-slate-400'}`}>
+                    {stepLabels[index]}
+                  </span>
                 </div>
                 {index < 3 && (
-                  <div
-                    className={`flex-1 h-1 mx-2 ${
-                      ['sales', 'vehicles', 'optimize', 'results'].indexOf(step) > index
-                        ? 'bg-green-500'
-                        : 'bg-gray-200'
-                    }`}
-                  />
+                  <div className={`flex-1 h-0.5 mx-3 rounded-full transition-all ${isCompleted ? 'bg-emerald-400' : 'bg-slate-200'}`} />
                 )}
               </div>
             )
@@ -500,420 +434,512 @@ export const PlanRoutesView = () => {
         </div>
       </div>
 
-      {/* Paso 1: Seleccionar Ventas */}
-      {step === 'sales' && (
-        <Card className="p-6">
-          <div className="flex items-center gap-2 mb-4">
-            <ShoppingCart className="w-5 h-5 text-blue-600" />
-            <h2 className="text-xl font-semibold text-gray-800">Seleccionar Ventas para Planificar</h2>
-          </div>
+      {/* Loading inicial */}
+      {isLoading && sales.length === 0 && (
+        <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-12 text-center">
+          <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-slate-500">Cargando datos...</p>
+        </div>
+      )}
 
-          <div className="space-y-4 mb-6">
-            <div>
-              <AddressAutocomplete
-                value={originAddress}
-                onChange={(address, lat, lng) => {
-                  setOriginAddress(address)
-                  if (lat && lng) {
-                    setOriginLat(lat)
-                    setOriginLng(lng)
-                  }
-                }}
-                placeholder="Buscar dirección de origen..."
-                label="Dirección de Origen"
-                required
-              />
-              {(originLat && originLng) && (
-                <p className="text-xs text-gray-500 mt-1">
-                  Coordenadas: {originLat.toFixed(6)}, {originLng.toFixed(6)}
-                </p>
-              )}
+      {/* ===================== PASO 1: VENTAS ===================== */}
+      {step === 'sales' && !isLoading && (
+        <div className="space-y-6">
+          {/* Bodega de origen */}
+          <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-slate-200/60 shadow-sm p-6">
+            <div className="flex items-center gap-2 mb-4">
+              <div className="w-8 h-8 bg-blue-50 rounded-lg flex items-center justify-center">
+                <WarehouseIcon className="w-4 h-4 text-blue-600" />
+              </div>
+              <h2 className="text-lg font-semibold text-slate-800">Bodega de Origen</h2>
             </div>
 
-            <div className="border-t pt-4">
-              <div className="flex items-center justify-between mb-4">
-                <Label>Ventas Pendientes ({selectedSales.length} seleccionadas)</Label>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">Selecciona la bodega</label>
+                <select
+                  value={selectedWarehouseId}
+                  onChange={(e) => handleWarehouseSelect(parseInt(e.target.value))}
+                  className="w-full px-4 py-2.5 bg-white border border-slate-200/60 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all text-slate-700 shadow-sm"
+                >
+                  <option value={0}>Seleccione una bodega...</option>
+                  {warehouses.map((w) => (
+                    <option key={w.id_warehouse} value={w.id_warehouse}>
+                      {w.name} - {w.address}
+                    </option>
+                  ))}
+                </select>
               </div>
 
-              {sales.length === 0 ? (
-                <p className="text-gray-500 text-sm py-8 text-center">
-                  No hay ventas pendientes para planificar rutas
-                </p>
-              ) : (
-                <div className="space-y-3">
-                  {sales.map((sale) => {
-                    const isSelected = selectedSales.includes(sale.id_sale)
-                    const formatCurrency = (amount: number) => {
-                      return new Intl.NumberFormat('es-CO', {
-                        style: 'currency',
-                        currency: 'COP',
-                        minimumFractionDigits: 0
-                      }).format(amount)
-                    }
-                    
-                    return (
-                      <div
-                        key={sale.id_sale}
-                        className={`border rounded-lg p-4 transition-all ${
-                          isSelected
-                            ? 'border-blue-500 bg-blue-50'
-                            : 'hover:border-gray-400'
-                        }`}
-                      >
-                        <div 
-                          className="cursor-pointer"
-                          onClick={() => handleSaleToggle(sale.id_sale)}
-                        >
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2 mb-2">
-                                <h3 className="font-semibold text-gray-800">
-                                  Venta {sale.sale_number || `#${sale.id_sale}`}
-                                </h3>
-                                {isSelected && (
-                                  <CheckCircle2 className="w-5 h-5 text-blue-600" />
-                                )}
-                              </div>
-                              <div className="space-y-1 text-sm text-gray-600">
-                                <p><strong>Cliente:</strong> {sale.client_name || sale.client?.name || 'N/A'}</p>
-                                <p><strong>Teléfono:</strong> {sale.client?.phone || 'N/A'}</p>
-                                <p><strong>Total:</strong> {formatCurrency(sale.total)}</p>
-                                {sale.details && sale.details.length > 0 && (
-                                  <div className="mt-2">
-                                    <p className="font-medium text-gray-700">Productos:</p>
-                                    <ul className="list-disc list-inside text-xs text-gray-600 ml-2">
-                                      {sale.details.map((detail, idx) => (
-                                        <li key={idx}>
-                                          {detail.product_name || `Producto ${detail.id_product}`} - 
-                                          Cantidad: {detail.quantity} - 
-                                          {formatCurrency(detail.subtotal)}
-                                        </li>
-                                      ))}
-                                    </ul>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                        
-                        {/* Dirección de destino - solo se muestra si la venta está seleccionada */}
-                        {isSelected && (
-                          <div className="mt-4 pt-4 border-t border-blue-200" onClick={(e) => e.stopPropagation()}>
-                            <AddressAutocomplete
-                              value={sale.destination_address || sale.client?.address || ''}
-                              onChange={(address, lat, lng) => {
-                                const updated = sales.map(s => {
-                                  if (s.id_sale === sale.id_sale) {
-                                    return {
-                                      ...s,
-                                      destination_address: address,
-                                      destination_latitude: lat,
-                                      destination_longitude: lng
-                                    }
-                                  }
-                                  return s
-                                })
-                                setSales(updated)
-                              }}
-                              placeholder="Buscar dirección de destino..."
-                              label="Dirección de Destino"
-                              required
-                            />
-                            {(sale.destination_latitude && sale.destination_longitude) && (
-                              <p className="text-xs text-gray-500 mt-1">
-                                Coordenadas: {sale.destination_latitude.toFixed(6)}, {sale.destination_longitude.toFixed(6)}
-                              </p>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
-
-            {selectedSales.length > 0 && (
-              <div className="bg-blue-50 rounded-lg p-4">
-                <h3 className="font-semibold text-gray-800 mb-2">Resumen de Carga Seleccionada</h3>
-                <div className="space-y-1 text-sm">
-                  <p><strong>Ventas seleccionadas:</strong> {selectedSales.length}</p>
-                  <p><strong>Valor total de ventas:</strong> {
-                    new Intl.NumberFormat('es-CO', {
-                      style: 'currency',
-                      currency: 'COP',
-                      minimumFractionDigits: 0
-                    }).format(
-                      sales
-                        .filter(s => selectedSales.includes(s.id_sale))
-                        .reduce((sum, sale) => sum + sale.total, 0)
-                    )
-                  }</p>
-                  {calculateTotalVolume() > 0 && (
-                    <p><strong>Volumen total estimado:</strong> {calculateTotalVolume().toFixed(2)} L</p>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">Coordenadas</label>
+                <div className="px-4 py-2.5 bg-slate-50 border border-slate-200/60 rounded-xl text-sm">
+                  {isGeocodingOrigin ? (
+                    <span className="text-blue-600 flex items-center gap-2">
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      Geocodificando...
+                    </span>
+                  ) : originLat && originLng ? (
+                    <span className="text-emerald-600 flex items-center gap-2">
+                      <MapPin className="w-3.5 h-3.5" />
+                      {originLat.toFixed(6)}, {originLng.toFixed(6)}
+                    </span>
+                  ) : (
+                    <span className="text-slate-400">Sin coordenadas</span>
                   )}
                 </div>
+              </div>
+            </div>
+
+            {selectedWarehouse && (
+              <div className="mt-3 px-4 py-2.5 bg-blue-50/60 border border-blue-100 rounded-xl text-sm text-blue-700 flex items-center gap-2">
+                <MapPin className="w-3.5 h-3.5 flex-shrink-0" />
+                <span><strong>{selectedWarehouse.name}</strong> &mdash; {selectedWarehouse.address}</span>
               </div>
             )}
           </div>
 
-          <div className="flex justify-end">
-            <Button
-              onClick={() => {
-                if (selectedSales.length === 0) {
-                  toast.error('Selecciona al menos una venta')
-                  return
-                }
-                if (!originAddress) {
-                  toast.error('Especifica la dirección de origen')
-                  return
-                }
-                
-                // Validar que todas las ventas seleccionadas tengan dirección de destino
-                const selectedSalesData = sales.filter(s => selectedSales.includes(s.id_sale))
-                const salesWithoutAddress = selectedSalesData.filter(s => !s.destination_address)
-                
-                if (salesWithoutAddress.length > 0) {
-                  toast.error(`${salesWithoutAddress.length} venta(s) no tienen dirección de destino. Por favor, completa las direcciones.`)
-                  return
-                }
-                
-                setStep('vehicles')
-              }}
-              disabled={selectedSales.length === 0 || !originAddress}
-            >
-              Siguiente: Vehículos
-            </Button>
-          </div>
-        </Card>
-      )}
+          {/* Ventas pendientes */}
+          <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-slate-200/60 shadow-sm p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 bg-amber-50 rounded-lg flex items-center justify-center">
+                  <ShoppingCart className="w-4 h-4 text-amber-600" />
+                </div>
+                <h2 className="text-lg font-semibold text-slate-800">Ventas Pendientes</h2>
+                <span className="px-2.5 py-0.5 bg-blue-50 text-blue-600 text-xs font-semibold rounded-full border border-blue-100">
+                  {selectedSales.length} seleccionadas
+                </span>
+              </div>
+            </div>
 
-      {/* Paso 2: Vehículos */}
-      {step === 'vehicles' && (
-        <Card className="p-6">
-          <div className="flex items-center gap-2 mb-4">
-            <Truck className="w-5 h-5 text-blue-600" />
-            <h2 className="text-xl font-semibold text-gray-800">Seleccionar Vehículos</h2>
-          </div>
-
-          <div className="mb-6">
-            <p className="text-sm text-gray-600 mb-4">
-              Valor total de ventas: {
-                new Intl.NumberFormat('es-CO', {
-                  style: 'currency',
-                  currency: 'COP',
-                  minimumFractionDigits: 0
-                }).format(
-                  sales
-                    .filter(s => selectedSales.includes(s.id_sale))
-                    .reduce((sum, sale) => sum + sale.total, 0)
-                )
-              }
-            </p>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {vehicles.map((vehicle) => {
-                const isSelected = selectedVehicles.includes(vehicle.id_vehicle)
-                const canCarry = vehicle.weight_capacity >= calculateTotalWeight()
-                return (
-                  <div
-                    key={vehicle.id_vehicle}
-                    className={`border rounded-lg p-4 cursor-pointer transition-all ${
-                      isSelected
-                        ? 'border-blue-500 bg-blue-50'
-                        : canCarry
-                        ? 'hover:border-gray-400'
-                        : 'opacity-50 cursor-not-allowed'
-                    }`}
-                    onClick={() => canCarry && handleVehicleToggle(vehicle.id_vehicle)}
-                  >
-                    <div className="flex items-start justify-between mb-2">
-                      <div>
-                        <h3 className="font-medium text-gray-800">{vehicle.license_plate}</h3>
-                        <p className="text-sm text-gray-600">
-                          {vehicle.brand} {vehicle.model}
-                        </p>
+            {sales.length === 0 ? (
+              <div className="p-12 text-center">
+                <div className="w-16 h-16 bg-slate-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                  <ShoppingCart className="w-8 h-8 text-slate-400" />
+                </div>
+                <h3 className="text-lg font-medium text-slate-700 mb-1">Sin ventas pendientes</h3>
+                <p className="text-slate-500 text-sm">No hay ventas pendientes para planificar rutas</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {sales.map((sale) => {
+                  const isSelected = selectedSales.includes(sale.id_sale)
+                  return (
+                    <div
+                      key={sale.id_sale}
+                      className={`border rounded-xl p-4 transition-all cursor-pointer ${
+                        isSelected
+                          ? 'border-blue-400 bg-blue-50/50 shadow-sm shadow-blue-500/10'
+                          : 'border-slate-200/60 hover:border-slate-300 hover:bg-slate-50/50'
+                      }`}
+                    >
+                      <div onClick={() => handleSaleToggle(sale.id_sale)}>
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-2">
+                              <h3 className="font-semibold text-slate-800">
+                                Venta {sale.sale_number || `#${sale.id_sale}`}
+                              </h3>
+                              {isSelected && <CheckCircle2 className="w-4.5 h-4.5 text-blue-600" />}
+                              <span className="ml-auto text-sm font-bold text-slate-800">
+                                {formatCurrency(Number(sale.total) || 0)}
+                              </span>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-sm text-slate-600">
+                              <p><span className="text-slate-400">Cliente:</span> {sale.client_name || sale.client?.name || 'N/A'}</p>
+                              <p><span className="text-slate-400">Telefono:</span> {sale.client?.phone || 'N/A'}</p>
+                              <p><span className="text-slate-400">Direccion:</span> {sale.destination_address || sale.client?.address || 'Sin direccion'}</p>
+                            </div>
+                            {sale.details && sale.details.length > 0 && (
+                              <div className="mt-2 flex flex-wrap gap-1.5">
+                                {sale.details.map((detail, idx) => (
+                                  <span key={idx} className="px-2 py-0.5 bg-slate-100 text-slate-600 text-xs rounded-md border border-slate-200/60">
+                                    {detail.product_name || `Producto ${detail.id_product}`} x{detail.quantity}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
                       </div>
+
+                      {/* Direccion de destino editable si esta seleccionada */}
                       {isSelected && (
-                        <div className="w-5 h-5 bg-blue-600 rounded-full flex items-center justify-center">
-                          <span className="text-white text-xs">✓</span>
+                        <div className="mt-4 pt-4 border-t border-blue-200/60" onClick={(e) => e.stopPropagation()}>
+                          <AddressAutocomplete
+                            value={sale.destination_address || sale.client?.address || ''}
+                            onChange={(address, lat, lng) => {
+                              setSales(prev => prev.map(s =>
+                                s.id_sale === sale.id_sale
+                                  ? { ...s, destination_address: address, destination_latitude: lat, destination_longitude: lng }
+                                  : s
+                              ))
+                            }}
+                            placeholder="Buscar direccion de destino..."
+                            label="Direccion de Destino"
+                            required
+                          />
+                          {sale.destination_latitude && sale.destination_longitude && (
+                            <p className="text-xs text-slate-400 mt-1 flex items-center gap-1">
+                              <MapPin className="w-3 h-3" />
+                              {sale.destination_latitude.toFixed(6)}, {sale.destination_longitude.toFixed(6)}
+                            </p>
+                          )}
                         </div>
                       )}
                     </div>
-                    <div className="text-xs text-gray-500 space-y-1">
-                      <p>Tipo: {vehicle.vehicle_type}</p>
-                      <p>Capacidad: {vehicle.weight_capacity} kg</p>
-                      {vehicle.volume_capacity && (
-                        <p>Volumen: {vehicle.volume_capacity} L</p>
-                      )}
-                      {!canCarry && (
-                        <p className="text-red-500 font-medium">Capacidad insuficiente</p>
-                      )}
+                  )
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Resumen de carga */}
+          {selectedSales.length > 0 && (
+            <div className="bg-gradient-to-r from-blue-50 to-cyan-50 rounded-2xl border border-blue-100 p-5">
+              <h3 className="font-semibold text-slate-800 mb-3 flex items-center gap-2">
+                <Package className="w-4 h-4 text-blue-600" />
+                Resumen de Carga
+              </h3>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div>
+                  <p className="text-xs text-slate-500 mb-0.5">Ventas</p>
+                  <p className="text-lg font-bold text-slate-800">{selectedSales.length}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-500 mb-0.5">Valor Total</p>
+                  <p className="text-lg font-bold text-emerald-600">{formatCurrency(selectedSalesTotal)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-500 mb-0.5">Peso Estimado</p>
+                  <p className="text-lg font-bold text-slate-800">{calculateTotalWeight().toFixed(1)} kg</p>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-500 mb-0.5">Volumen Estimado</p>
+                  <p className="text-lg font-bold text-slate-800">{calculateTotalVolume().toFixed(1)} L</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Boton siguiente */}
+          <div className="flex justify-end">
+            <button
+              onClick={() => {
+                if (selectedSales.length === 0) { toast.error('Selecciona al menos una venta'); return }
+                if (!selectedWarehouseId) { toast.error('Selecciona una bodega de origen'); return }
+                if (!originLat || !originLng) { toast.error('La bodega no tiene coordenadas validas'); return }
+                const selectedSalesData = sales.filter(s => selectedSales.includes(s.id_sale))
+                const salesWithoutAddress = selectedSalesData.filter(s => !s.destination_address)
+                if (salesWithoutAddress.length > 0) {
+                  toast.error(`${salesWithoutAddress.length} venta(s) sin direccion de destino.`)
+                  return
+                }
+                setStep('vehicles')
+              }}
+              disabled={selectedSales.length === 0 || !selectedWarehouseId}
+              className="flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-medium rounded-xl hover:from-blue-700 hover:to-cyan-600 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Siguiente: Vehiculos
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ===================== PASO 2: VEHICULOS ===================== */}
+      {step === 'vehicles' && (
+        <div className="space-y-6">
+          {/* Info de carga */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-slate-200/60 shadow-sm p-4">
+              <p className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1">Ventas</p>
+              <p className="text-xl font-bold text-slate-800">{selectedSales.length}</p>
+            </div>
+            <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-slate-200/60 shadow-sm p-4">
+              <p className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1">Valor Total</p>
+              <p className="text-xl font-bold text-emerald-600">{formatCurrency(selectedSalesTotal)}</p>
+            </div>
+            <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-slate-200/60 shadow-sm p-4">
+              <p className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1">Peso</p>
+              <p className="text-xl font-bold text-slate-800">{calculateTotalWeight().toFixed(1)} kg</p>
+            </div>
+            <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-slate-200/60 shadow-sm p-4">
+              <p className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1">Origen</p>
+              <p className="text-sm font-semibold text-blue-600 truncate">{selectedWarehouse?.name || 'N/A'}</p>
+            </div>
+          </div>
+
+          {/* Seleccion de vehiculos */}
+          <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-slate-200/60 shadow-sm p-6">
+            <div className="flex items-center gap-2 mb-4">
+              <div className="w-8 h-8 bg-purple-50 rounded-lg flex items-center justify-center">
+                <Truck className="w-4 h-4 text-purple-600" />
+              </div>
+              <h2 className="text-lg font-semibold text-slate-800">Seleccionar Vehiculos</h2>
+              <span className="px-2.5 py-0.5 bg-purple-50 text-purple-600 text-xs font-semibold rounded-full border border-purple-100">
+                {selectedVehicles.length} seleccionados
+              </span>
+            </div>
+
+            {vehicles.length === 0 ? (
+              <div className="p-12 text-center">
+                <div className="w-16 h-16 bg-slate-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                  <Truck className="w-8 h-8 text-slate-400" />
+                </div>
+                <h3 className="text-lg font-medium text-slate-700 mb-1">Sin vehiculos</h3>
+                <p className="text-slate-500 text-sm">No hay vehiculos disponibles</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {vehicles.map((vehicle) => {
+                  const isSelected = selectedVehicles.includes(vehicle.id_vehicle)
+                  const canCarry = vehicle.weight_capacity >= calculateTotalWeight()
+                  return (
+                    <div
+                      key={vehicle.id_vehicle}
+                      className={`border rounded-xl p-4 cursor-pointer transition-all ${
+                        isSelected
+                          ? 'border-blue-400 bg-blue-50/50 shadow-sm shadow-blue-500/10'
+                          : canCarry
+                          ? 'border-slate-200/60 hover:border-slate-300 hover:bg-slate-50/50'
+                          : 'border-slate-200/60 opacity-50 cursor-not-allowed'
+                      }`}
+                      onClick={() => canCarry && handleVehicleToggle(vehicle.id_vehicle)}
+                    >
+                      <div className="flex items-start justify-between mb-3">
+                        <div>
+                          <h3 className="font-semibold text-slate-800">{vehicle.license_plate}</h3>
+                          <p className="text-sm text-slate-500">{vehicle.brand} {vehicle.model}</p>
+                        </div>
+                        {isSelected && (
+                          <div className="w-6 h-6 bg-gradient-to-r from-blue-600 to-cyan-500 rounded-full flex items-center justify-center">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-white" />
+                          </div>
+                        )}
+                      </div>
+                      <div className="space-y-1.5">
+                        <div className="flex items-center gap-2 text-xs text-slate-500">
+                          <Weight className="w-3.5 h-3.5" />
+                          <span>Capacidad: <strong className="text-slate-700">{vehicle.weight_capacity} kg</strong></span>
+                        </div>
+                        {vehicle.volume_capacity && (
+                          <div className="flex items-center gap-2 text-xs text-slate-500">
+                            <Box className="w-3.5 h-3.5" />
+                            <span>Volumen: <strong className="text-slate-700">{vehicle.volume_capacity} L</strong></span>
+                          </div>
+                        )}
+                        <div className="flex items-center gap-2 text-xs text-slate-500">
+                          <Truck className="w-3.5 h-3.5" />
+                          <span>Tipo: <strong className="text-slate-700">{vehicle.vehicle_type}</strong></span>
+                        </div>
+                        {!canCarry && (
+                          <p className="text-xs text-red-500 font-medium mt-1">Capacidad insuficiente</p>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Botones */}
+          <div className="flex justify-between">
+            <button
+              onClick={() => setStep('sales')}
+              className="flex items-center gap-2 px-5 py-2.5 bg-slate-100 text-slate-700 font-medium rounded-xl hover:bg-slate-200 transition-colors"
+            >
+              <ChevronLeft className="w-4 h-4" />
+              Anterior
+            </button>
+            <button
+              onClick={handleOptimize}
+              disabled={selectedVehicles.length === 0}
+              className="flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-medium rounded-xl hover:from-blue-700 hover:to-cyan-600 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Navigation className="w-4 h-4" />
+              Optimizar Rutas
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ===================== PASO 3: OPTIMIZANDO ===================== */}
+      {step === 'optimize' && (
+        <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-slate-200/60 shadow-sm p-12">
+          <div className="flex flex-col items-center justify-center">
+            <div className="w-16 h-16 bg-gradient-to-r from-blue-600 to-cyan-500 rounded-2xl flex items-center justify-center mb-4 shadow-lg shadow-blue-500/25">
+              <Loader2 className="w-8 h-8 text-white animate-spin" />
+            </div>
+            <h2 className="text-xl font-semibold text-slate-800 mb-2">Optimizando Rutas</h2>
+            <p className="text-slate-500 text-sm">Calculando las mejores rutas con OSRM...</p>
+            <div className="mt-6 flex items-center gap-3 text-sm text-slate-500">
+              <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
+              <span>Geocodificando direcciones y calculando distancias</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===================== PASO 4: RESULTADOS ===================== */}
+      {step === 'results' && (
+        <div className="space-y-6">
+          {/* Resumen de rutas */}
+          <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-slate-200/60 shadow-sm p-6">
+            <div className="flex items-center gap-2 mb-5">
+              <div className="w-8 h-8 bg-emerald-50 rounded-lg flex items-center justify-center">
+                <Route className="w-4 h-4 text-emerald-600" />
+              </div>
+              <h2 className="text-lg font-semibold text-slate-800">Rutas Optimizadas</h2>
+              <span className="px-2.5 py-0.5 bg-emerald-50 text-emerald-600 text-xs font-semibold rounded-full border border-emerald-100">
+                {optimizedRoutes.length} rutas
+              </span>
+            </div>
+
+            <div className="space-y-4">
+              {optimizedRoutes.map((route) => {
+                const routeSalesValue = route.assignments.reduce((sum, a) => {
+                  const sale = sales.find(s => s.id_sale === a.cargo.id_cargo)
+                  return sum + (sale ? Number(sale.total) || 0 : 0)
+                }, 0)
+                const distance = typeof route.total_distance === 'number' && !isNaN(route.total_distance) ? route.total_distance : 0
+                const duration = typeof route.total_duration === 'number' && !isNaN(route.total_duration) ? route.total_duration : 0
+
+                return (
+                  <div key={route.route_code} className="border border-slate-200/60 rounded-xl p-5 hover:bg-slate-50/50 transition-colors">
+                    <div className="flex items-start justify-between mb-4">
+                      <div>
+                        <h3 className="font-semibold text-slate-800">{route.route_code}</h3>
+                        <p className="text-sm text-slate-500 mt-0.5">
+                          Vehiculo: <strong>{route.assignments[0]?.vehicle.license_plate}</strong>
+                          {' | '}
+                          Conductor: <strong>
+                            {route.id_driver === 0 || !route.id_driver
+                              ? 'Sin asignar'
+                              : `${route.assignments[0]?.driver.first_name} ${route.assignments[0]?.driver.last_name}`}
+                          </strong>
+                        </p>
+                      </div>
+                      <span className="px-3 py-1 bg-amber-50 text-amber-700 text-xs font-semibold rounded-lg border border-amber-200">
+                        {route.status}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                      <div className="bg-slate-50 rounded-lg p-3">
+                        <div className="flex items-center gap-1.5 text-xs text-slate-500 mb-0.5">
+                          <MapPin className="w-3 h-3" />
+                          Paradas
+                        </div>
+                        <p className="font-bold text-slate-800">{route.assignments.length}</p>
+                      </div>
+                      <div className="bg-slate-50 rounded-lg p-3">
+                        <div className="flex items-center gap-1.5 text-xs text-slate-500 mb-0.5">
+                          <Navigation className="w-3 h-3" />
+                          Distancia
+                        </div>
+                        <p className="font-bold text-slate-800">{distance.toFixed(2)} km</p>
+                      </div>
+                      <div className="bg-slate-50 rounded-lg p-3">
+                        <div className="flex items-center gap-1.5 text-xs text-slate-500 mb-0.5">
+                          <Clock className="w-3 h-3" />
+                          Duracion
+                        </div>
+                        <p className="font-bold text-slate-800">{duration.toFixed(0)} min</p>
+                      </div>
+                      <div className="bg-slate-50 rounded-lg p-3">
+                        <div className="flex items-center gap-1.5 text-xs text-slate-500 mb-0.5">
+                          <Weight className="w-3 h-3" />
+                          Peso
+                        </div>
+                        <p className="font-bold text-slate-800">{route.total_weight.toFixed(1)} kg</p>
+                      </div>
+                      <div className="bg-slate-50 rounded-lg p-3">
+                        <div className="flex items-center gap-1.5 text-xs text-slate-500 mb-0.5">
+                          <DollarSign className="w-3 h-3" />
+                          Valor Ventas
+                        </div>
+                        <p className="font-bold text-emerald-600">{formatCurrency(routeSalesValue)}</p>
+                      </div>
+                    </div>
+
+                    {/* Paradas */}
+                    <div className="mt-4 pt-3 border-t border-slate-100">
+                      <p className="text-xs font-medium text-slate-500 mb-2 uppercase tracking-wider">Paradas</p>
+                      <div className="space-y-1.5">
+                        {route.assignments.map((assignment, idx) => (
+                          <div key={idx} className="flex items-center gap-2 text-sm">
+                            <span className="w-5 h-5 bg-blue-100 text-blue-700 rounded-md flex items-center justify-center text-xs font-bold flex-shrink-0">
+                              {idx + 1}
+                            </span>
+                            <span className="text-slate-600 truncate">{assignment.cargo.destination_address}</span>
+                            <span className="text-xs text-slate-400 flex-shrink-0">({assignment.cargo.weight} kg)</span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 )
               })}
             </div>
-          </div>
 
-          <div className="flex justify-between">
-            <Button variant="outline" onClick={() => setStep('sales')}>
-              Anterior
-            </Button>
-            <Button onClick={handleOptimize} disabled={selectedVehicles.length === 0}>
-              Optimizar Rutas
-            </Button>
-          </div>
-        </Card>
-      )}
-
-      {/* Paso 4: Optimizando */}
-      {step === 'optimize' && (
-        <Card className="p-6">
-          <div className="flex flex-col items-center justify-center py-12">
-            <Loader2 className="w-12 h-12 text-blue-600 animate-spin mb-4" />
-            <h2 className="text-xl font-semibold text-gray-800 mb-2">Optimizando Rutas</h2>
-            <p className="text-gray-600">Esto puede tomar unos momentos...</p>
-          </div>
-        </Card>
-      )}
-
-      {/* Paso 5: Resultados */}
-      {step === 'results' && (
-        <div className="space-y-6">
-          <Card className="p-6">
-            <div className="flex items-center gap-2 mb-4">
-              <Route className="w-5 h-5 text-blue-600" />
-              <h2 className="text-xl font-semibold text-gray-800">Rutas Optimizadas</h2>
-            </div>
-
-            <div className="space-y-4 mb-6">
-              {optimizedRoutes.map((route, index) => (
-                <div key={route.route_code} className="border rounded-lg p-4">
-                  <div className="flex items-start justify-between mb-3">
-                    <div>
-                      <h3 className="font-semibold text-gray-800">{route.route_code}</h3>
-                      <p className="text-sm text-gray-600">
-                        Vehículo: {route.assignments[0]?.vehicle.license_plate} | 
-                        Conductor: {route.id_driver === 0 || !route.id_driver 
-                          ? 'Sin asignar' 
-                          : `${route.assignments[0]?.driver.first_name} ${route.assignments[0]?.driver.last_name}`}
-                      </p>
-                    </div>
-                    <span className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-medium">
-                      {route.status}
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                    <div>
-                      <p className="text-gray-500">Paradas</p>
-                      <p className="font-semibold">{route.assignments.length}</p>
-                    </div>
-                    <div>
-                      <p className="text-gray-500">Distancia</p>
-                      <p className="font-semibold">
-                        {typeof route.total_distance === 'number' && !isNaN(route.total_distance)
-                          ? `${route.total_distance.toFixed(2)} km`
-                          : '0.00 km'}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-gray-500">Duración</p>
-                      <p className="font-semibold">
-                        {typeof route.total_duration === 'number' && !isNaN(route.total_duration)
-                          ? `${route.total_duration.toFixed(0)} min`
-                          : '0 min'}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-gray-500">Valor Total</p>
-                      <p className="font-semibold">
-                        {(() => {
-                          // Calcular valor de ventas en esta ruta
-                          let salesInRoute = 0
-                          
-                          route.assignments.forEach(assignment => {
-                            const sale = sales.find(s => s.id_sale === assignment.cargo.id_cargo)
-                            if (sale && sale.total != null) {
-                              const saleTotal = Number(sale.total)
-                              if (!isNaN(saleTotal) && isFinite(saleTotal)) {
-                                salesInRoute += saleTotal
-                              }
-                            }
-                          })
-                          
-                          // Sumar 1000 por cada km
-                          const distance = typeof route.total_distance === 'number' && !isNaN(route.total_distance) && isFinite(route.total_distance)
-                            ? route.total_distance 
-                            : 0
-                          const distanceCost = distance * 1000
-                          const totalValue = salesInRoute + distanceCost
-                          
-                          // Validar que el valor total sea un número válido
-                          if (isNaN(totalValue) || !isFinite(totalValue)) {
-                            return '$0'
-                          }
-                          
-                          return new Intl.NumberFormat('es-CO', {
-                            style: 'currency',
-                            currency: 'COP',
-                            minimumFractionDigits: 0
-                          }).format(totalValue)
-                        })()}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="mt-3 pt-3 border-t">
-                    <p className="text-xs font-medium text-gray-700 mb-2">Paradas:</p>
-                    <ol className="list-decimal list-inside space-y-1 text-xs text-gray-600">
-                      {route.assignments.map((assignment, idx) => (
-                        <li key={idx}>
-                          {assignment.cargo.destination_address} ({assignment.cargo.weight} kg)
-                        </li>
-                      ))}
-                    </ol>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="flex gap-4">
-              <Button variant="outline" onClick={() => setStep('vehicles')}>
+            {/* Botones */}
+            <div className="flex gap-3 mt-6 pt-4 border-t border-slate-100">
+              <button
+                onClick={() => setStep('vehicles')}
+                className="flex items-center gap-2 px-5 py-2.5 bg-slate-100 text-slate-700 font-medium rounded-xl hover:bg-slate-200 transition-colors"
+              >
+                <RotateCcw className="w-4 h-4" />
                 Volver
-              </Button>
-              <Button onClick={handleSaveRoutes} disabled={isLoading}>
-                {isLoading ? 'Guardando...' : 'Guardar Rutas'}
-              </Button>
+              </button>
+              <button
+                onClick={handleSaveRoutes}
+                disabled={isLoading}
+                className="flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-medium rounded-xl hover:from-blue-700 hover:to-cyan-600 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Guardando...
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-4 h-4" />
+                    Guardar Rutas
+                  </>
+                )}
+              </button>
             </div>
-          </Card>
+          </div>
 
-          {/* Mapa con rutas optimizadas */}
-          <Card className="p-6">
-            <h2 className="text-xl font-semibold text-gray-800 mb-4">Visualización de Rutas</h2>
+          {/* Mapa */}
+          <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-slate-200/60 shadow-sm p-6">
+            <h2 className="text-lg font-semibold text-slate-800 mb-4 flex items-center gap-2">
+              <MapPin className="w-5 h-5 text-blue-600" />
+              Visualizacion de Rutas
+            </h2>
             {optimizedRoutes.length > 0 ? (
               <OptimizedRouteMap routes={optimizedRoutes} />
             ) : (
-              <div className="w-full h-[600px] rounded-2xl overflow-hidden shadow-lg bg-gray-100 flex flex-col items-center justify-center">
-                <p className="text-gray-500 text-lg mb-2">No hay rutas para mostrar</p>
-                <p className="text-gray-400 text-sm">No se generaron rutas optimizadas. Verifica que:</p>
-                <ul className="text-gray-400 text-sm mt-2 list-disc list-inside">
-                  <li>Las ventas tengan direcciones válidas con coordenadas</li>
-                  <li>Los vehículos seleccionados tengan capacidad suficiente</li>
-                  <li>Haya ventas seleccionadas</li>
-                </ul>
-                <Button 
-                  variant="outline" 
-                  className="mt-4"
+              <div className="w-full h-[600px] rounded-2xl overflow-hidden bg-slate-50 flex flex-col items-center justify-center">
+                <div className="w-16 h-16 bg-slate-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                  <MapPin className="w-8 h-8 text-slate-400" />
+                </div>
+                <h3 className="text-lg font-medium text-slate-700 mb-1">No hay rutas para mostrar</h3>
+                <p className="text-slate-500 text-sm">Verifica ventas, direcciones y vehiculos</p>
+                <button
                   onClick={() => setStep('vehicles')}
+                  className="mt-4 px-4 py-2 bg-slate-100 text-slate-700 text-sm font-medium rounded-xl hover:bg-slate-200 transition-colors"
                 >
                   Volver a Optimizar
-                </Button>
+                </button>
               </div>
             )}
-          </Card>
+          </div>
         </div>
       )}
     </div>
   )
 }
-
