@@ -1,28 +1,55 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { categoriesService } from '@/services/categoriesService'
-import { getCompanyId } from '@/hooks/useCompanyId'
 import {
-  CreateProductCategoryDto,
+  UpdateProductCategoryDto,
   StorageType,
   STORAGE_TYPE_LABELS,
 } from '@/types/productTypes'
 import { ArrowLeft, Tag, Archive, Palette } from 'lucide-react'
 
-export function AddCategoryView() {
+interface EditCategoryViewProps {
+  categoryId: number
+}
+
+export function EditCategoryView({ categoryId }: EditCategoryViewProps) {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
+  const [isFetching, setIsFetching] = useState(true)
 
-  const [categoryData, setCategoryData] = useState<CreateProductCategoryDto>({
-    id_company: getCompanyId(),
+  const [categoryData, setCategoryData] = useState<UpdateProductCategoryDto>({
     name: '',
     description: '',
     default_storage_type: undefined,
     icon: '',
     color: '#3B82F6',
   })
+
+  useEffect(() => {
+    loadCategory()
+  }, [categoryId])
+
+  const loadCategory = async () => {
+    setIsFetching(true)
+    try {
+      const category = await categoriesService.getCategoryById(categoryId)
+      if (category) {
+        setCategoryData({
+          name: category.name,
+          description: category.description || '',
+          default_storage_type: category.default_storage_type || undefined,
+          icon: category.icon || '',
+          color: category.color || '#3B82F6',
+        })
+      }
+    } catch (error) {
+      console.error('Error al cargar categoria:', error)
+    } finally {
+      setIsFetching(false)
+    }
+  }
 
   const handleInputChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
@@ -39,12 +66,12 @@ export function AddCategoryView() {
     setIsLoading(true)
 
     try {
-      const result = await categoriesService.createCategory(categoryData)
+      const result = await categoriesService.updateCategory(categoryId, categoryData)
       if (result) {
         router.push('/dashboard/productos/categorias')
       }
     } catch (error) {
-      console.error('Error al crear categoria:', error)
+      console.error('Error al actualizar categoria:', error)
     } finally {
       setIsLoading(false)
     }
@@ -53,6 +80,17 @@ export function AddCategoryView() {
   const inputClass = "w-full px-4 py-2.5 bg-slate-50 border border-slate-200/60 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:bg-white outline-none transition-all text-slate-800 placeholder:text-slate-400"
   const selectClass = "w-full px-4 py-2.5 bg-slate-50 border border-slate-200/60 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:bg-white outline-none transition-all text-slate-700"
   const labelClass = "block text-sm font-medium text-slate-700 mb-1.5"
+
+  if (isFetching) {
+    return (
+      <div className="p-8 min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-slate-500">Cargando categoria...</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="p-8 min-h-screen">
@@ -66,8 +104,8 @@ export function AddCategoryView() {
         </button>
 
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-slate-800">Agregar Categoria</h1>
-          <p className="text-slate-500 text-sm mt-1">Complete la informacion de la categoria de producto</p>
+          <h1 className="text-2xl font-bold text-slate-800">Editar Categoria</h1>
+          <p className="text-slate-500 text-sm mt-1">Modifique la informacion de la categoria</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -160,7 +198,7 @@ export function AddCategoryView() {
               disabled={isLoading}
               className="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-medium rounded-xl hover:from-blue-700 hover:to-cyan-600 transition-all shadow-sm disabled:opacity-50"
             >
-              {isLoading ? 'Creando...' : 'Crear Categoria'}
+              {isLoading ? 'Guardando...' : 'Guardar Cambios'}
             </button>
           </div>
         </form>

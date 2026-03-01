@@ -1,254 +1,250 @@
-'use client';
+'use client'
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { stockService } from '@/services/stockService';
-import { Stock } from '@/types/productTypes';
-import { Button } from '@/components/ui/button';
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import { stockService } from '@/services/stockService'
+import { warehouseService } from '@/services/warehouseService'
+import { Stock, Warehouse } from '@/types/productTypes'
+import { Search, Plus, PackageOpen, Warehouse as WarehouseIcon, ArrowRightLeft } from 'lucide-react'
 
-// TODO: Obtener de un servicio de bodegas
-const WAREHOUSES = [
-  { id: 1, name: 'Bodega Principal', location: 'Sede Central' },
-  { id: 2, name: 'Bodega Norte', location: 'Zona Norte' },
-  { id: 3, name: 'Bodega Sur', location: 'Zona Sur' },
-];
+// PostgreSQL numeric(10,3) llega como string "150.000" — parseamos a number
+const num = (v: any): number => Number(v) || 0
+
+const formatQty = (v: any): string => {
+  const n = num(v)
+  return n % 1 === 0 ? n.toLocaleString() : n.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 2 })
+}
 
 export function StockListView() {
-  const router = useRouter();
-  const [stockItems, setStockItems] = useState<Stock[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [selectedWarehouse, setSelectedWarehouse] = useState<number>(1);
-  const [searchTerm, setSearchTerm] = useState('');
+  const router = useRouter()
+  const [stockItems, setStockItems] = useState<Stock[]>([])
+  const [warehouses, setWarehouses] = useState<Warehouse[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [selectedWarehouse, setSelectedWarehouse] = useState<number>(0)
+  const [searchTerm, setSearchTerm] = useState('')
 
   useEffect(() => {
-    loadStock();
-  }, [selectedWarehouse]);
+    loadWarehouses()
+  }, [])
+
+  useEffect(() => {
+    if (selectedWarehouse > 0) {
+      loadStock()
+    }
+  }, [selectedWarehouse])
+
+  const loadWarehouses = async () => {
+    const data = await warehouseService.getAllWarehouses()
+    setWarehouses(data)
+    if (data.length > 0) {
+      setSelectedWarehouse(data[0].id_warehouse)
+    }
+    setIsLoading(false)
+  }
 
   const loadStock = async () => {
-    setIsLoading(true);
-    const data = await stockService.getStockByWarehouse(selectedWarehouse);
-    setStockItems(data);
-    setIsLoading(false);
-  };
+    setIsLoading(true)
+    const data = await stockService.getStockByWarehouse(selectedWarehouse)
+    setStockItems(data)
+    setIsLoading(false)
+  }
 
   const filteredStock = stockItems.filter(
     (item) =>
       item.product_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       item.sku?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  )
 
-  const getStockStatusBadge = (available: number, reserved: number) => {
-    const total = available + reserved;
+  const totalAvailable = filteredStock.reduce((sum, item) => sum + num(item.quantity_available), 0)
+  const totalReserved = filteredStock.reduce((sum, item) => sum + num(item.reserved_quantity), 0)
+
+  const getStockStatusBadge = (rawAvailable: any, rawReserved: any) => {
+    const available = num(rawAvailable)
+    const reserved = num(rawReserved)
+    const total = available + reserved
     if (total === 0) {
-      return (
-        <span className="px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800">
-          Sin stock
-        </span>
-      );
+      return { className: 'bg-slate-100 text-slate-500 border-slate-200', label: 'Sin stock' }
     } else if (available === 0 && reserved > 0) {
-      return (
-        <span className="px-2 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800">
-          Todo reservado
-        </span>
-      );
+      return { className: 'bg-amber-50 text-amber-700 border-amber-200', label: 'Reservado' }
     } else if (available > 0 && available <= 10) {
-      return (
-        <span className="px-2 py-1 text-xs font-semibold rounded-full bg-orange-100 text-orange-800">
-          Stock bajo
-        </span>
-      );
-    } else {
-      return (
-        <span className="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
-          Disponible
-        </span>
-      );
+      return { className: 'bg-orange-50 text-orange-700 border-orange-200', label: 'Stock bajo' }
     }
-  };
+    return { className: 'bg-emerald-50 text-emerald-700 border-emerald-200', label: 'Disponible' }
+  }
 
-  if (isLoading) {
+  // No warehouses at all
+  if (!isLoading && warehouses.length === 0) {
     return (
-      <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      <div className="p-8 min-h-screen">
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold text-slate-800">Inventario</h1>
+          <p className="text-slate-500 text-sm mt-1">Gestion de stock por bodega</p>
+        </div>
+        <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-12 text-center">
+          <div className="w-16 h-16 bg-slate-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <WarehouseIcon className="w-8 h-8 text-slate-400" />
+          </div>
+          <h3 className="text-lg font-medium text-slate-700 mb-1">No hay bodegas registradas</h3>
+          <p className="text-slate-500 text-sm mb-4">Crea tu primera bodega para comenzar a gestionar inventario</p>
+          <button
+            onClick={() => router.push('/dashboard/productos/bodegas')}
+            className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-medium rounded-xl hover:from-blue-700 hover:to-cyan-600 transition-all shadow-sm"
+          >
+            Ir a Bodegas
+          </button>
+        </div>
       </div>
-    );
+    )
   }
 
   return (
-    <div className="p-6">
+    <div className="p-8 min-h-screen">
+      {/* Header */}
       <div className="mb-6 flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-gray-800">
-          Inventario / Stock
-        </h1>
+        <div>
+          <h1 className="text-2xl font-bold text-slate-800">Inventario</h1>
+          <p className="text-slate-500 text-sm mt-1">Gestion de stock por bodega</p>
+        </div>
         <div className="flex gap-3">
-          <Button
-            variant="secondary"
-            onClick={() =>
-              router.push('/dashboard/productos/inventario/movimientos')
-            }
+          <button
+            onClick={() => router.push('/dashboard/productos/inventario/movimientos')}
+            className="flex items-center gap-2 px-4 py-2.5 bg-slate-100 text-slate-700 font-medium rounded-xl hover:bg-slate-200 transition-colors"
           >
-            Ver Movimientos
-          </Button>
-          <Button
-            onClick={() =>
-              router.push('/dashboard/productos/inventario/agregar-stock')
-            }
+            <ArrowRightLeft className="w-4 h-4" />
+            Movimientos
+          </button>
+          <button
+            onClick={() => router.push('/dashboard/productos/inventario/agregar-stock')}
+            className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-medium rounded-xl hover:from-blue-700 hover:to-cyan-600 transition-all shadow-sm"
           >
+            <Plus className="w-4 h-4" />
             Registrar Movimiento
-          </Button>
+          </button>
         </div>
       </div>
 
-      {/* Filtros */}
-      <div className="mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Bodega
-          </label>
-          <select
-            value={selectedWarehouse}
-            onChange={(e) => setSelectedWarehouse(parseInt(e.target.value))}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          >
-            {WAREHOUSES.map((warehouse) => (
-              <option key={warehouse.id} value={warehouse.id}>
-                {warehouse.name} - {warehouse.location}
-              </option>
-            ))}
-          </select>
+      {/* Summary Cards */}
+      <div className="grid grid-cols-3 gap-4 mb-6">
+        <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-slate-200/60 shadow-sm p-5">
+          <p className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1">Items en bodega</p>
+          <p className="text-2xl font-bold text-slate-800">{filteredStock.length}</p>
         </div>
+        <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-slate-200/60 shadow-sm p-5">
+          <p className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1">Total Disponible</p>
+          <p className="text-2xl font-bold text-emerald-600">{formatQty(totalAvailable)}</p>
+        </div>
+        <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-slate-200/60 shadow-sm p-5">
+          <p className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1">Total Reservado</p>
+          <p className="text-2xl font-bold text-amber-600">{formatQty(totalReserved)}</p>
+        </div>
+      </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Buscar
-          </label>
+      {/* Filters */}
+      <div className="mb-6 flex gap-4">
+        <select
+          value={selectedWarehouse}
+          onChange={(e) => setSelectedWarehouse(parseInt(e.target.value))}
+          className="px-4 py-2.5 bg-white border border-slate-200/60 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all text-slate-700 shadow-sm min-w-[250px]"
+        >
+          {warehouses.map((warehouse) => (
+            <option key={warehouse.id_warehouse} value={warehouse.id_warehouse}>
+              {warehouse.name} - {warehouse.address}
+            </option>
+          ))}
+        </select>
+        <div className="flex-1 relative">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <input
             type="text"
             placeholder="Buscar por nombre o SKU..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full pl-11 pr-4 py-2.5 bg-white border border-slate-200/60 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all text-slate-800 placeholder:text-slate-400 shadow-sm"
           />
         </div>
       </div>
 
-      {/* Tabla de Stock */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  SKU
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Producto
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Disponible
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Reservado
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Total
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Estado
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Última Act.
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {filteredStock.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan={7}
-                    className="px-6 py-12 text-center text-gray-500"
-                  >
-                    {searchTerm
-                      ? 'No se encontraron productos'
-                      : 'No hay stock registrado en esta bodega'}
-                  </td>
+      {/* Table */}
+      <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden">
+        {isLoading ? (
+          <div className="p-12 text-center">
+            <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+            <p className="text-slate-500">Cargando inventario...</p>
+          </div>
+        ) : filteredStock.length === 0 ? (
+          <div className="p-12 text-center">
+            <div className="w-16 h-16 bg-slate-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <PackageOpen className="w-8 h-8 text-slate-400" />
+            </div>
+            <h3 className="text-lg font-medium text-slate-700 mb-1">Sin stock</h3>
+            <p className="text-slate-500 text-sm mb-4">
+              {searchTerm ? 'No se encontraron productos' : 'No hay stock registrado en esta bodega'}
+            </p>
+            {!searchTerm && (
+              <button
+                onClick={() => router.push('/dashboard/productos/inventario/agregar-stock')}
+                className="px-4 py-2 bg-gradient-to-r from-blue-600 to-cyan-500 text-white text-sm font-medium rounded-xl hover:from-blue-700 hover:to-cyan-600 transition-all"
+              >
+                Registrar Entrada
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="bg-slate-50/80 border-b border-slate-200/60">
+                  <th className="px-6 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">SKU</th>
+                  <th className="px-6 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Producto</th>
+                  <th className="px-6 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Disponible</th>
+                  <th className="px-6 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Reservado</th>
+                  <th className="px-6 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Total</th>
+                  <th className="px-6 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Estado</th>
+                  <th className="px-6 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Ultima Act.</th>
                 </tr>
-              ) : (
-                filteredStock.map((item) => (
-                  <tr key={item.id_stock} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {item.sku}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {item.product_name}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      <span className="font-semibold text-green-600">
-                        {item.quantity_available.toLocaleString()}
-                      </span>{' '}
-                      <span className="text-gray-500">
-                        {item.primary_unit_name || item.unit_type}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      <span className="font-semibold text-yellow-600">
-                        {item.reserved_quantity.toLocaleString()}
-                      </span>{' '}
-                      <span className="text-gray-500">
-                        {item.primary_unit_name || item.unit_type}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      <span className="font-semibold">
-                        {(
-                          item.quantity_available + item.reserved_quantity
-                        ).toLocaleString()}
-                      </span>{' '}
-                      <span className="text-gray-500">
-                        {item.primary_unit_name || item.unit_type}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {getStockStatusBadge(
-                        item.quantity_available,
-                        item.reserved_quantity
-                      )}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {new Date(item.updated_at).toLocaleDateString()}
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Resumen */}
-      <div className="mt-4 flex justify-between items-center text-sm text-gray-600">
-        <span>
-          Mostrando {filteredStock.length} productos
-        </span>
-        <div className="flex gap-6">
-          <span>
-            Total Disponible:{' '}
-            <span className="font-semibold text-green-600">
-              {filteredStock
-                .reduce((sum, item) => sum + item.quantity_available, 0)
-                .toLocaleString()}
-            </span>
-          </span>
-          <span>
-            Total Reservado:{' '}
-            <span className="font-semibold text-yellow-600">
-              {filteredStock
-                .reduce((sum, item) => sum + item.reserved_quantity, 0)
-                .toLocaleString()}
-            </span>
-          </span>
-        </div>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {filteredStock.map((item) => {
+                  const available = num(item.quantity_available)
+                  const reserved = num(item.reserved_quantity)
+                  const total = available + reserved
+                  const status = getStockStatusBadge(item.quantity_available, item.reserved_quantity)
+                  return (
+                    <tr key={item.id_stock} className="hover:bg-slate-50 transition-colors">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className="text-sm font-semibold text-slate-800">{item.sku}</span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className="text-sm font-medium text-slate-800">{item.product_name}</span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className="text-sm font-semibold text-emerald-600">{formatQty(available)}</span>
+                        <span className="text-xs text-slate-500 ml-1">{item.primary_unit_name || item.unit_type}</span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className="text-sm font-semibold text-amber-600">{formatQty(reserved)}</span>
+                        <span className="text-xs text-slate-500 ml-1">{item.primary_unit_name || item.unit_type}</span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className="text-sm font-semibold text-slate-800">{formatQty(total)}</span>
+                        <span className="text-xs text-slate-500 ml-1">{item.primary_unit_name || item.unit_type}</span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`px-2.5 py-1 inline-flex text-xs font-semibold rounded-lg border ${status.className}`}>
+                          {status.label}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
+                        {new Date(item.last_updated).toLocaleDateString()}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
-  );
+  )
 }

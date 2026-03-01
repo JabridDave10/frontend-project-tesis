@@ -92,10 +92,11 @@ export const Sidebar = ({ isOpen, onToggle }: SidebarProps) => {
       href: '#',
       icon: <Package className="w-5 h-5" />,
       submenu: [
-        { name: 'Ver Productos', href: '/dashboard/productos' },
-        { name: 'Agregar Producto', href: '/dashboard/productos/agregar' },
-        { name: 'Categorías', href: '/dashboard/productos/categorias' },
+        { name: 'Catalogo', href: '/dashboard/productos' },
+        { name: 'Categorias', href: '/dashboard/productos/categorias' },
         { name: 'Inventario', href: '/dashboard/productos/inventario' },
+        { name: 'Movimientos', href: '/dashboard/productos/inventario/movimientos' },
+        { name: 'Bodegas', href: '/dashboard/productos/bodegas' },
       ]
     },
     {

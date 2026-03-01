@@ -4,22 +4,25 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { productsService } from '@/services/productsService'
 import { categoriesService } from '@/services/categoriesService'
-import { getCompanyId } from '@/hooks/useCompanyId'
 import {
-  CreateProductDto,
+  UpdateProductDto,
   ProductCategory,
   UnitTypeEnum,
   UNIT_TYPE_LABELS,
 } from '@/types/productTypes'
 import { ArrowLeft, Package, Ruler, Thermometer, Shield, FileText } from 'lucide-react'
 
-export function AddProductView() {
+interface EditProductViewProps {
+  productId: number
+}
+
+export function EditProductView({ productId }: EditProductViewProps) {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
+  const [isFetching, setIsFetching] = useState(true)
   const [categories, setCategories] = useState<ProductCategory[]>([])
 
-  const [productData, setProductData] = useState<CreateProductDto>({
-    id_company: 0,
+  const [productData, setProductData] = useState<UpdateProductDto>({
     sku: '',
     name: '',
     description: '',
@@ -43,13 +46,47 @@ export function AddProductView() {
   })
 
   useEffect(() => {
-    setProductData(prev => ({ ...prev, id_company: getCompanyId() }))
-    loadCategories()
-  }, [])
+    loadData()
+  }, [productId])
 
-  const loadCategories = async () => {
-    const data = await categoriesService.getAllCategories()
-    setCategories(data)
+  const loadData = async () => {
+    setIsFetching(true)
+    try {
+      const [product, categoriesData] = await Promise.all([
+        productsService.getProductById(productId),
+        categoriesService.getAllCategories(),
+      ])
+      setCategories(categoriesData)
+
+      if (product) {
+        setProductData({
+          sku: product.sku,
+          name: product.name,
+          description: product.description || '',
+          primary_unit_type: product.primary_unit_type,
+          primary_unit_name: product.primary_unit_name,
+          id_category: product.id_category || undefined,
+          weight_per_unit: product.weight_per_unit || undefined,
+          volume_per_unit: product.volume_per_unit || undefined,
+          width: product.width || undefined,
+          height: product.height || undefined,
+          length: product.length || undefined,
+          requires_refrigeration: product.requires_refrigeration,
+          min_temperature: product.min_temperature || undefined,
+          max_temperature: product.max_temperature || undefined,
+          is_fragile: product.is_fragile,
+          is_hazardous: product.is_hazardous,
+          requires_batch_control: product.requires_batch_control,
+          requires_expiry_date: product.requires_expiry_date,
+          photo: product.photo || '',
+          notes: product.notes || '',
+        })
+      }
+    } catch (error) {
+      console.error('Error al cargar producto:', error)
+    } finally {
+      setIsFetching(false)
+    }
   }
 
   const handleInputChange = (
@@ -76,12 +113,12 @@ export function AddProductView() {
     setIsLoading(true)
 
     try {
-      const result = await productsService.createProduct(productData)
+      const result = await productsService.updateProduct(productId, productData)
       if (result) {
         router.push('/dashboard/productos')
       }
     } catch (error) {
-      console.error('Error al crear producto:', error)
+      console.error('Error al actualizar producto:', error)
     } finally {
       setIsLoading(false)
     }
@@ -91,10 +128,20 @@ export function AddProductView() {
   const selectClass = "w-full px-4 py-2.5 bg-slate-50 border border-slate-200/60 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:bg-white outline-none transition-all text-slate-700"
   const labelClass = "block text-sm font-medium text-slate-700 mb-1.5"
 
+  if (isFetching) {
+    return (
+      <div className="p-8 min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-slate-500">Cargando producto...</p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="p-8 min-h-screen">
       <div className="max-w-4xl mx-auto">
-        {/* Back link */}
         <button
           onClick={() => router.push('/dashboard/productos')}
           className="flex items-center gap-2 text-slate-500 hover:text-slate-800 transition-colors mb-6"
@@ -104,8 +151,8 @@ export function AddProductView() {
         </button>
 
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-slate-800">Agregar Producto</h1>
-          <p className="text-slate-500 text-sm mt-1">Complete la informacion del producto</p>
+          <h1 className="text-2xl font-bold text-slate-800">Editar Producto</h1>
+          <p className="text-slate-500 text-sm mt-1">Modifique la informacion del producto</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -268,7 +315,7 @@ export function AddProductView() {
               disabled={isLoading}
               className="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-medium rounded-xl hover:from-blue-700 hover:to-cyan-600 transition-all shadow-sm disabled:opacity-50"
             >
-              {isLoading ? 'Creando...' : 'Crear Producto'}
+              {isLoading ? 'Guardando...' : 'Guardar Cambios'}
             </button>
           </div>
         </form>

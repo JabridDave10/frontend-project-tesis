@@ -125,10 +125,11 @@ export interface Stock {
   reserved_quantity: number;
   unit_type: string;
   updated_by: number;
-  updated_at: Date;
-  product_name?: string; // Agregado por backend
+  last_updated: Date;
+  product_name?: string;
   sku?: string;
-  warehouse_location?: string;
+  warehouse_name?: string;
+  warehouse_address?: string;
   primary_unit_name?: string;
 }
 
@@ -147,8 +148,10 @@ export interface StockMovement {
   created_at: Date;
   product_name?: string;
   sku?: string;
-  origin_location?: string;
-  destination_location?: string;
+  origin_name?: string;
+  origin_address?: string;
+  destination_name?: string;
+  destination_address?: string;
   first_name?: string;
   last_name?: string;
 }
@@ -167,6 +170,18 @@ export interface ProductBatch {
   notes?: string;
   created_at: Date;
   modified_at: Date;
+}
+
+export interface Warehouse {
+  id_warehouse: number;
+  name: string;
+  address: string;
+  id_company: number;
+  id_status: number;
+  created_at: Date;
+  modified_at: Date;
+  deleted_at?: Date;
+  stock_count?: number;
 }
 
 // ==================== DTOs ====================
@@ -246,6 +261,19 @@ export interface CreateStockMovementDto {
   reference_number?: string;
   notes?: string;
   created_by: number;
+}
+
+export interface CreateWarehouseDto {
+  name: string;
+  address: string;
+  id_company: number;
+  id_status?: number;
+}
+
+export interface UpdateWarehouseDto {
+  name?: string;
+  address?: string;
+  id_status?: number;
 }
 
 export interface ReserveStockDto {
