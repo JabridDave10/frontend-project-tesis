@@ -24,6 +24,12 @@ interface AddressAutocompleteProps {
   placeholder?: string
   label?: string
   required?: boolean
+  /** City/region context appended to search queries (default: "Bogotá, Colombia") */
+  searchContext?: string
+  /** Nominatim viewbox "min_lon,min_lat,max_lon,max_lat" (default: Bogotá area) */
+  viewbox?: string
+  /** If true, strictly bounds results to viewbox (bounded=1). Default false. */
+  bounded?: boolean
 }
 
 export const AddressAutocomplete = ({
@@ -31,7 +37,10 @@ export const AddressAutocomplete = ({
   onChange,
   placeholder = 'Buscar dirección...',
   label,
-  required = false
+  required = false,
+  searchContext = 'Bogotá, Colombia',
+  viewbox = '-74.3,4.4,-73.9,4.9',
+  bounded = false,
 }: AddressAutocompleteProps) => {
   const [suggestions, setSuggestions] = useState<AddressSuggestion[]>([])
   const [showSuggestions, setShowSuggestions] = useState(false)
@@ -62,19 +71,9 @@ export const AddressAutocomplete = ({
 
     setIsLoading(true)
     try {
-      // Agregar "Bogotá, Colombia" al query para limitar la búsqueda
-      const searchQuery = `${query}, Bogotá, Colombia`
-      
-      // Viewbox de Bogotá (bounding box) - expandido para incluir más resultados
-      // Formato: min_lon,min_lat,max_lon,max_lat
-      // Bogotá: aproximadamente -74.2, 4.5, -74.0, 4.8 (expandido un poco)
-      const viewbox = '-74.3,4.4,-73.9,4.9'
-      
-      // URL con parámetros para priorizar Bogotá pero no limitar estrictamente:
-      // - viewbox: área geográfica de búsqueda (prioriza pero no limita estrictamente)
-      // - bounded=0: permite resultados fuera del viewbox pero los prioriza
-      // - countrycodes=co: limitar a Colombia
-      const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=10&addressdetails=1&viewbox=${viewbox}&bounded=0&countrycodes=co`
+      const searchQuery = `${query}, ${searchContext}`
+      const boundedParam = bounded ? '1' : '0'
+      const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=10&addressdetails=1&viewbox=${viewbox}&bounded=${boundedParam}&countrycodes=co`
       
       const response = await fetch(url, {
         headers: {
@@ -95,39 +94,37 @@ export const AddressAutocomplete = ({
                displayName.includes('colombia')
       })
       
-      // Separar resultados de Bogotá y otros
-      const bogotaResults: AddressSuggestion[] = []
+      // Extract city keywords from searchContext for prioritization
+      const contextKeywords = searchContext
+        .toLowerCase()
+        .replace(/,/g, ' ')
+        .split(/\s+/)
+        .filter(w => w.length > 2 && w !== 'colombia')
+
+      const priorityResults: AddressSuggestion[] = []
       const otherResults: AddressSuggestion[] = []
-      
+
       colombiaResults.forEach(item => {
         const address = item.address || {}
         const city = (address.city || address.town || '').toLowerCase()
         const state = (address.state || '').toLowerCase()
         const displayName = (item.display_name || '').toLowerCase()
-        
-        const isBogota = 
-          city.includes('bogotá') || 
-          city.includes('bogota') ||
-          state.includes('bogotá') ||
-          state.includes('bogota') ||
-          state.includes('cundinamarca') ||
-          displayName.includes('bogotá') ||
-          displayName.includes('bogota')
-        
-        if (isBogota) {
-          bogotaResults.push(item)
+        const combined = `${city} ${state} ${displayName}`
+
+        const matchesContext = contextKeywords.some(kw => combined.includes(kw))
+
+        if (matchesContext) {
+          priorityResults.push(item)
         } else {
           otherResults.push(item)
         }
       })
-      
-      // Priorizar resultados de Bogotá, pero si hay menos de 3, incluir otros de Colombia
+
       let finalResults: AddressSuggestion[] = []
-      if (bogotaResults.length >= 3) {
-        finalResults = bogotaResults
+      if (priorityResults.length >= 3) {
+        finalResults = priorityResults
       } else {
-        // Combinar resultados de Bogotá con otros, priorizando Bogotá
-        finalResults = [...bogotaResults, ...otherResults]
+        finalResults = [...priorityResults, ...otherResults]
       }
       
       // Limitar a 5 resultados
@@ -172,9 +169,9 @@ export const AddressAutocomplete = ({
     if (!address || address.length < 3) return
 
     try {
-      const searchQuery = `${address}, Bogotá, Colombia`
-      const viewbox = '-74.3,4.4,-73.9,4.9'
-      const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=1&addressdetails=1&viewbox=${viewbox}&bounded=0&countrycodes=co`
+      const geoQuery = `${address}, ${searchContext}`
+      const boundedParam = bounded ? '1' : '0'
+      const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(geoQuery)}&limit=1&addressdetails=1&viewbox=${viewbox}&bounded=${boundedParam}&countrycodes=co`
       
       const response = await fetch(url, {
         headers: {
