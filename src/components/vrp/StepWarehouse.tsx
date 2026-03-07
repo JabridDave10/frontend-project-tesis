@@ -39,14 +39,18 @@ export function StepWarehouse({
   }
 
   const geocodeAddress = async (address: string): Promise<{ lat: number; lng: number } | null> => {
+    const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
+    if (!apiKey) return null
+
     try {
       const encoded = encodeURIComponent(address + ', Colombia')
       const res = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encoded}&limit=1&countrycodes=co`
+        `https://maps.googleapis.com/maps/api/geocode/json?address=${encoded}&components=country:CO&key=${apiKey}`
       )
-      const results = await res.json()
-      if (results.length > 0) {
-        return { lat: parseFloat(results[0].lat), lng: parseFloat(results[0].lon) }
+      const data = await res.json()
+      if (data.status === 'OK' && data.results.length > 0) {
+        const loc = data.results[0].geometry.location
+        return { lat: loc.lat, lng: loc.lng }
       }
     } catch (err) {
       console.error('Geocoding error:', err)

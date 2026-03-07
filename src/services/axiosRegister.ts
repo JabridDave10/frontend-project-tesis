@@ -94,7 +94,7 @@ export class AxiosUserManagement {
       console.log('User:', response.data.user)
       // Guardar token en localStorage
       if (response.data.access_token) {
-        localStorage.setItem('token', response.data.access_token)
+        localStorage.setItem('access_token', response.data.access_token)
         localStorage.setItem('user', JSON.stringify(response.data.user))
       }
 
@@ -152,7 +152,7 @@ export class AxiosUserManagement {
       console.log('Respuesta del servidor:', response.data)
 
       // Limpiar localStorage
-      localStorage.removeItem('token')
+      localStorage.removeItem('access_token')
       localStorage.removeItem('user')
 
       // Mostrar mensaje de éxito
@@ -163,7 +163,7 @@ export class AxiosUserManagement {
       console.error('Error al cerrar sesión:', error)
 
       // Aunque falle la petición, igualmente limpiar localStorage
-      localStorage.removeItem('token')
+      localStorage.removeItem('access_token')
       localStorage.removeItem('user')
 
       if (error.response) {

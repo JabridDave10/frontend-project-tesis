@@ -24,8 +24,8 @@ import type {
         console.log('Respuesta del servidor:', response.data)
         
         // Guardar token en localStorage
-        if (response.data.token) {
-          localStorage.setItem('token', response.data.token)
+        if (response.data.access_token) {
+          localStorage.setItem('access_token', response.data.access_token)
           localStorage.setItem('user', JSON.stringify(response.data.user))
         }
         

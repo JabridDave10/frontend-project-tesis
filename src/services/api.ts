@@ -22,12 +22,15 @@ const createAxiosInstance = (): AxiosInstance => {
     withCredentials: true, // ⚠️ IMPORTANTE: Esto permite enviar/recibir cookies automáticamente
   })
 
-  // Interceptor de request - Ya no necesitas manejar el token manualmente
-  // Las cookies se envían automáticamente por el navegador
+  // Interceptor de request - Enviar token como Bearer header (necesario para cross-origin)
   apiInstance.interceptors.request.use(
     (config: InternalAxiosRequestConfig) => {
-      // Ya no necesitas agregar el token aquí
-      // El navegador envía automáticamente la cookie 'access_token' si existe
+      if (typeof window !== 'undefined') {
+        const token = localStorage.getItem('access_token')
+        if (token) {
+          config.headers.Authorization = `Bearer ${token}`
+        }
+      }
       return config
     },
     (error) => {
@@ -44,12 +47,12 @@ const createAxiosInstance = (): AxiosInstance => {
           response.data = decryptData(response.data.encrypted)
         }
 
-        // Si el login fue exitoso, el token ya está guardado en cookies automáticamente
-        // No necesitas guardarlo en localStorage
+        // Guardar token y usuario en localStorage para cross-origin requests
         if (response.config.url?.includes('/auth/login') && response.data?.user) {
-          console.log('✅ Login exitoso - Token guardado en cookies automáticamente')
-          // Opcional: Guardar datos del usuario en localStorage si los necesitas
           if (typeof window !== 'undefined') {
+            if (response.data.access_token) {
+              localStorage.setItem('access_token', response.data.access_token)
+            }
             localStorage.setItem('user', JSON.stringify(response.data.user))
           }
         }
