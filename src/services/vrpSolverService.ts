@@ -49,6 +49,25 @@ export class VRPSolverService {
       }
     }
 
+    // The API can return numeric Postgres columns as strings. Normalising up
+    // front means every downstream sum, comparison and capacity ratio is real
+    // arithmetic instead of accidental string concatenation.
+    deliveryPoints = deliveryPoints.map(p => ({
+      ...p,
+      total_weight: Number(p.total_weight) || 0,
+      total_volume: Number(p.total_volume) || 0,
+      latitude: Number(p.latitude) || 0,
+      longitude: Number(p.longitude) || 0,
+    }))
+    vehicleDriverPairs = vehicleDriverPairs.map(pair => ({
+      ...pair,
+      vehicle: {
+        ...pair.vehicle,
+        weight_capacity: Number(pair.vehicle.weight_capacity) || 0,
+        volume_capacity: Number(pair.vehicle.volume_capacity) || 0,
+      },
+    }))
+
     // 1. Distance matrix
     onProgress?.('Calculando matriz de distancias... (1/3)')
     const matrix = await this.computeDistanceMatrix(depot, deliveryPoints)

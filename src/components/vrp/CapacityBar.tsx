@@ -2,14 +2,17 @@
 
 interface CapacityBarProps {
   label: string
-  current: number
-  max: number
+  current: number | string
+  max: number | string
   unit: string
   colorClass?: string
 }
 
 export function CapacityBar({ label, current, max, unit, colorClass }: CapacityBarProps) {
-  const pct = max > 0 ? Math.min((current / max) * 100, 100) : 0
+  // Coerce: API values can arrive as strings (Postgres numeric columns).
+  const cur = Number(current) || 0
+  const lim = Number(max) || 0
+  const pct = lim > 0 ? Math.min((cur / lim) * 100, 100) : 0
   const rounded = Math.round(pct)
 
   const barColor = colorClass
@@ -25,7 +28,7 @@ export function CapacityBar({ label, current, max, unit, colorClass }: CapacityB
       <div className="flex justify-between text-xs">
         <span className="text-slate-500 font-medium">{label}</span>
         <span className="text-slate-600">
-          {current.toLocaleString('es-CO', { maximumFractionDigits: 1 })} / {max.toLocaleString('es-CO', { maximumFractionDigits: 1 })} {unit}
+          {cur.toLocaleString('es-CO', { maximumFractionDigits: 1 })} / {lim.toLocaleString('es-CO', { maximumFractionDigits: 1 })} {unit}
           <span className={`ml-1.5 font-bold ${pct > 90 ? 'text-red-600' : pct > 70 ? 'text-amber-600' : 'text-blue-600'}`}>
             {rounded}%
           </span>
