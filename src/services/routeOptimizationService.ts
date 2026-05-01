@@ -2,6 +2,9 @@ import { Cargo, CargoAssignment, OptimizedRoute } from '@/types/cargoTypes'
 import { Vehicle } from '@/types/vehicleTypes'
 import { Driver } from '@/types/driverTypes'
 
+// Backend proxy avoids OSRM CORS errors (router.project-osrm.org doesn't send CORS headers).
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'
+
 interface OSRMRouteResponse {
   code: string
   routes: Array<{
@@ -32,7 +35,7 @@ export class RouteOptimizationService {
     try {
       // Formato: lon,lat (OSRM usa longitud primero)
       const coordinates = `${origin[1]},${origin[0]};${destination[1]},${destination[0]}`
-      const url = `https://router.project-osrm.org/route/v1/driving/${coordinates}?overview=full&geometries=geojson`
+      const url = `${API_URL}/routing/route?coords=${encodeURIComponent(coordinates)}&overview=full&geometries=geojson`
 
       const response = await fetch(url)
       const data: OSRMRouteResponse = await response.json()
@@ -439,7 +442,7 @@ export class RouteOptimizationService {
         ...stops.map(stop => `${stop.lng},${stop.lat}`)
       ].join(';')
 
-      const url = `https://router.project-osrm.org/route/v1/driving/${waypoints}?overview=full&geometries=geojson`
+      const url = `${API_URL}/routing/route?coords=${encodeURIComponent(waypoints)}&overview=full&geometries=geojson`
 
       const response = await fetch(url)
       const data: OSRMRouteResponse = await response.json()

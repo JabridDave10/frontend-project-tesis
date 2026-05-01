@@ -3,6 +3,9 @@ import { useState, useEffect } from "react";
 import { MapContainer, TileLayer, Marker, Popup, Polyline } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 
+// Backend proxy avoids OSRM CORS errors (router.project-osrm.org doesn't send CORS headers).
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
+
 // Fix para los iconos de Leaflet en Next.js
 if (typeof window !== "undefined") {
   const L = require("leaflet");
@@ -48,7 +51,7 @@ export default function Map() {
       try {
         // Formato: lon,lat (OSRM usa longitud primero)
         const coordinates = `${position1[1]},${position1[0]};${position2[1]},${position2[0]}`;
-        const url = `https://router.project-osrm.org/route/v1/driving/${coordinates}?overview=full&geometries=geojson`;
+        const url = `${API_URL}/routing/route?coords=${encodeURIComponent(coordinates)}&overview=full&geometries=geojson`;
         
         const response = await fetch(url);
         const data: RouteResponse = await response.json();

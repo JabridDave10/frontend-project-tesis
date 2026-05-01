@@ -9,6 +9,9 @@ import {
   VRPResult,
 } from '@/types/vrpTypes'
 
+// Backend proxy avoids OSRM CORS errors (router.project-osrm.org doesn't send CORS headers).
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'
+
 interface OSRMTableResponse {
   code: string
   distances: number[][] // metros
@@ -173,7 +176,7 @@ export class VRPSolverService {
     ].join(';')
 
     try {
-      const url = `https://router.project-osrm.org/table/v1/driving/${coords}?annotations=distance,duration`
+      const url = `${API_URL}/routing/table?coords=${encodeURIComponent(coords)}&annotations=distance,duration`
       const res = await fetch(url)
       const data: OSRMTableResponse = await res.json()
 
@@ -572,7 +575,7 @@ export class VRPSolverService {
         ...stops.map(s => `${s.lng},${s.lat}`),
       ].join(';')
 
-      const url = `https://router.project-osrm.org/route/v1/driving/${waypoints}?overview=full&geometries=geojson`
+      const url = `${API_URL}/routing/route?coords=${encodeURIComponent(waypoints)}&overview=full&geometries=geojson`
       const res = await fetch(url)
       const data: OSRMRouteResponse = await res.json()
 
