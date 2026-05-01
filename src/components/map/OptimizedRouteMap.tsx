@@ -260,9 +260,9 @@ export default function OptimizedRouteMap({
                   <p>Vehículo: {route.assignments[0]?.vehicle.license_plate}</p>
                   <p>Conductor: {route.assignments[0]?.driver.first_name} {route.assignments[0]?.driver.last_name}</p>
                   <p>Paradas: {route.assignments.length}</p>
-                  <p>Distancia: {route.total_distance.toFixed(2)} km</p>
-                  <p>Duración: {route.total_duration.toFixed(0)} min</p>
-                  <p>Peso total: {route.total_weight.toFixed(2)} kg</p>
+                  <p>Distancia: {(Number(route.total_distance) || 0).toFixed(2)} km</p>
+                  <p>Duración: {(Number(route.total_duration) || 0).toFixed(0)} min</p>
+                  <p>Peso total: {(Number(route.total_weight) || 0).toFixed(2)} kg</p>
                 </div>
               </div>
             );

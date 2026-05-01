@@ -271,8 +271,10 @@ export class RouteOptimizationService {
         route_order: existingRoute.assignments.length + 1
       })
 
-      existingRoute.total_weight += cargo.weight
-      existingRoute.total_volume = (existingRoute.total_volume || 0) + (cargo.volume || 0)
+      // Number() coerces values that arrive as strings from the API (Postgres numeric)
+      // so += performs addition instead of string concatenation.
+      existingRoute.total_weight += Number(cargo.weight) || 0
+      existingRoute.total_volume = (Number(existingRoute.total_volume) || 0) + (Number(cargo.volume) || 0)
       assignedCargos.add(cargo.id_cargo)
       console.log(`Carga ${cargo.id_cargo} asignada a vehículo ${suitableVehicle.license_plate} (ruta: ${existingRoute.route_code})`)
     }
